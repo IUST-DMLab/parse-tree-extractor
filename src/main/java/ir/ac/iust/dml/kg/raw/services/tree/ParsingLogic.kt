@@ -30,6 +30,7 @@ class ParsingLogic {
     val hashes = mutableMapOf<String, MutableSet<String>>()
     var uniqueSentenceCount = 0
     var page = 0;
+    val startTime = System.currentTimeMillis()
     do {
       val pages = dao.search(page++, 100, null, false, null, null, null, null)
       pages.filter { it.posTags != null && it.posTags.isNotEmpty() && it.posTags.size < 20 }.forEach {
@@ -59,7 +60,8 @@ class ParsingLogic {
               set.add(it.raw)
             }
             if (uniqueSentenceCount % 1000 == 0)
-              logger.info("${uniqueSentenceCount} >> ${hashes.size} ($page  of ${pages.totalPages})")
+              logger.info("${uniqueSentenceCount} >> ${hashes.size} ($page  of ${pages.totalPages}) " +
+                  "in ${(System.currentTimeMillis() - startTime) / 1000} seconds")
           }
         } catch (th: Throwable) {
           logger.error(it.raw, th)
