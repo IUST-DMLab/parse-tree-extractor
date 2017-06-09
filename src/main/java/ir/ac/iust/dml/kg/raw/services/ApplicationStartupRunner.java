@@ -17,7 +17,7 @@ class ApplicationStartupRunner implements CommandLineRunner {
   @Override
   public void run(String... args) throws Exception {
     logger.info("ApplicationStartupRunner run method Started !!");
-    if (args.length == 0 || args[0].equals("write"))
-      parsingLogic.writeParses();
+    if (args.length == 0) return;
+    if (args[0].equals("write")) parsingLogic.writeParses();
   }
 }
