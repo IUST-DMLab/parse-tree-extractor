@@ -75,7 +75,6 @@ class ParsingLogic {
 //          if(it.second.size < 10) it.second.forEach { sentence -> println(sentence) }
 //        }
 
-    logger.info("writing ${hashes.size} patterns")
     var writtenPatterns = 0
     hashes.forEach { pattern, sentences ->
       writtenPatterns++
@@ -83,7 +82,7 @@ class ParsingLogic {
       e.samples.addAll(sentences)
       patternDao.save(e)
       if (writtenPatterns % 1000 == 0)
-        logger.info("$writtenPatterns patterns has been written")
+        logger.info("$writtenPatterns of ${hashes.size} patterns has been written")
     }
   }
 
