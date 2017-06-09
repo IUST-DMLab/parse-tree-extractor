@@ -6,7 +6,7 @@
 
     <groupId>ir.ac.iust.dml.kg.raw</groupId>
     <artifactId>parse-tree-extractor</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
     <name>Parse Tree Extractor</name>
 
     <properties>
@@ -103,7 +103,7 @@
         <dependency>
             <groupId>ir.ac.iust.dml.kg.raw</groupId>
             <artifactId>raw-text-access</artifactId>
-            <version>0.2.0</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>ir.ac.iust.dml.kg.raw</groupId>
@@ -146,12 +146,6 @@
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-stdlib-jre8</artifactId>
             <version>${kotlin.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-test</artifactId>
-            <version>${kotlin.version}</version>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>
