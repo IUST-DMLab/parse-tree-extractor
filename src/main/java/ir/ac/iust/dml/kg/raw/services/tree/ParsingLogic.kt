@@ -59,7 +59,7 @@ class ParsingLogic {
               set.add(it.raw)
             }
             if (uniqueSentenceCount % 1000 == 0)
-              logger.info("${uniqueSentenceCount} >> ${hashes.size}")
+              logger.info("${uniqueSentenceCount} >> ${hashes.size} ($page  of ${pages.totalPages}")
           }
         } catch (th: Throwable) {
           logger.error(it.raw, th)
