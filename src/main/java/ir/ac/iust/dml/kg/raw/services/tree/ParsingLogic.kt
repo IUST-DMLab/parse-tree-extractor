@@ -64,6 +64,7 @@ class ParsingLogic {
         it.sentenceLength = it.pattern.split("][").size
         patternDao.save(it)
       }
+      logger.info("getting page $page form ${pages.totalPages}")
     } while (!pages.isLast)
   }
 
