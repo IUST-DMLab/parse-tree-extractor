@@ -54,10 +54,22 @@ class ParsingLogic {
     return words
   }
 
+  fun writeSizes() {
+    var page = 0
+    do {
+      val pages = patternDao.search(page++, 100, null, null, null)
+      pages.forEach {
+        it.count = it.samples.size
+        it.sentenceLength = it.pattern.split("][").size
+        patternDao.save(it)
+      }
+    } while (!pages.isLast)
+  }
+
   fun writeParses() {
     val hashes = mutableMapOf<String, MutableSet<String>>()
     var uniqueSentenceCount = 0
-    var page = 0;
+    var page = 0
     val startTime = System.currentTimeMillis()
     do {
       val pages = dao.search(page++, 100, null, false, null, null, null, null)
