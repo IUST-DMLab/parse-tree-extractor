@@ -9,6 +9,7 @@ import org.apache.commons.logging.LogFactory
 import org.bson.types.ObjectId
 import org.maltparser.concurrent.graph.ConcurrentDependencyGraph
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 
 @Service
@@ -57,7 +58,7 @@ class ParsingLogic {
   fun writeSizes() {
     var page = 0
     do {
-      val pages = patternDao.search(page++, 100, null, null, null)
+      val pages = patternDao.findAll(PageRequest(page++, 1000))
       pages.forEach {
         it.count = it.samples.size
         it.sentenceLength = it.pattern.split("][").size
@@ -122,6 +123,8 @@ class ParsingLogic {
       writtenPatterns++
       val e = patternDao.findByPattern(pattern) ?: DependencyPattern(pattern)
       e.samples.addAll(sentences)
+      e.count = e.samples.size
+      e.sentenceLength = pattern.split("][").size
       patternDao.save(e)
       if (writtenPatterns % 1000 == 0)
         logger.info("$writtenPatterns of ${hashes.size} patterns has been written")
