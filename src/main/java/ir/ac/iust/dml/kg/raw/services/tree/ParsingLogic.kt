@@ -65,7 +65,7 @@ class ParsingLogic {
         patternDao.save(it)
       }
       logger.info("getting page $page form ${pages.totalPages}")
-    } while (!pages.isLast)
+    } while (pages.hasNext())
   }
 
   fun writeParses() {
