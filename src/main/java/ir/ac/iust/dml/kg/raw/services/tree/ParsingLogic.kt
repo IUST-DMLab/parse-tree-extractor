@@ -9,6 +9,7 @@ import org.apache.commons.logging.LogFactory
 import org.bson.types.ObjectId
 import org.maltparser.concurrent.graph.ConcurrentDependencyGraph
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 
@@ -21,9 +22,24 @@ class ParsingLogic {
 
   fun findOne(id: String) = dao.findOne(ObjectId(id))
 
-  fun searchPattern(page: Int, pageSize: Int, maxSentenceLength: Int?,
-                    minSize: Int?, approved: Boolean?)
-      = patternDao.search(page, pageSize, maxSentenceLength, minSize, approved)
+  fun searchPattern(page: Int, pageSize: Int,
+                    reduceSize: Int? = 50, maxSentenceLength: Int?,
+                    minSize: Int?, approved: Boolean?): Page<DependencyPattern>? {
+    val result = patternDao.search(page, pageSize, maxSentenceLength, minSize, approved)
+    if (reduceSize != null)
+      result.forEach {
+        if (it.samples.size > reduceSize) {
+          val reducedSizeSet = mutableSetOf<String>()
+          var i = 0
+          for (x in it.samples) {
+            if (i++ > reduceSize) break
+            reducedSizeSet.add(x)
+          }
+          it.samples = reducedSizeSet
+        }
+      }
+    return result
+  }
 
   fun save(pattern: DependencyPattern) = patternDao.save(pattern)
 
