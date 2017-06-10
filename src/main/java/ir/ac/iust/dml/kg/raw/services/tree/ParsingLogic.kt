@@ -3,12 +3,13 @@ package ir.ac.iust.dml.kg.raw.services.tree
 import edu.stanford.nlp.ling.TaggedWord
 import ir.ac.iust.dml.kg.raw.DependencyParser
 import ir.ac.iust.dml.kg.raw.services.access.entities.DependencyPattern
-import ir.ac.iust.dml.kg.raw.services.access.entities.Occurrence
 import ir.ac.iust.dml.kg.raw.services.access.repositories.DependencyPatternRepository
 import ir.ac.iust.dml.kg.raw.services.access.repositories.OccurrenceRepository
 import org.apache.commons.logging.LogFactory
 import org.bson.types.ObjectId
+import org.maltparser.concurrent.graph.ConcurrentDependencyGraph
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 
 @Service
@@ -18,12 +19,38 @@ class ParsingLogic {
   private val logger = LogFactory.getLog(javaClass)
   private val DEP_CALC_ERROR = "error"
 
-  fun findOne(id: String): Occurrence {
-    return dao.findOne(ObjectId(id))
-  }
+  fun findOne(id: String) = dao.findOne(ObjectId(id))
 
-  fun save(occurrence: Occurrence) {
-    dao.save(occurrence)
+  fun searchPattern(page: Int, pageSize: Int) = patternDao.findAll(PageRequest(page, pageSize))
+
+  fun save(pattern: DependencyPattern) = patternDao.save(pattern)
+
+  fun dependencyText(text: String) = convert(DependencyParser.parseRaw(text))
+
+  fun dependencySentence(sentence: String) = convert(DependencyParser.parseRaw(sentence))[0]
+
+  fun dependencySentences(sentences: List<String>) =
+      convert(DependencyParser.parseRaw(sentences.joinToString(separator = " ")))
+
+  fun convert(graphs: List<ConcurrentDependencyGraph>) = graphs.map { convert(it) }
+
+  fun convert(graph: ConcurrentDependencyGraph): List<ParsedWord> {
+    val words = mutableListOf<ParsedWord>()
+    for (i in 1..graph.nTokenNodes()) {
+      val node = graph.getDependencyNode(i)
+      val parsedWord = ParsedWord()
+      parsedWord.position = Integer.parseInt(node.getLabel("ID"))
+      parsedWord.word = node.getLabel("FORM")
+      parsedWord.lemma = node.getLabel("LEMMA")
+      parsedWord.cPOS = node.getLabel("CPOSTAG")
+      parsedWord.pos = node.getLabel("POSTAG")
+      parsedWord.features = node.getLabel("FEATS")
+      val headIdLabel = node.head.getLabel("ID")
+      parsedWord.head = if (headIdLabel.isEmpty()) 0 else Integer.parseInt(headIdLabel)
+      parsedWord.relation = node.getLabel("DEPREL")
+      words.add(parsedWord)
+    }
+    return words
   }
 
   fun writeParses() {
