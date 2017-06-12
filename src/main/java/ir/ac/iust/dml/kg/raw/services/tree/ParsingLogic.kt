@@ -198,7 +198,9 @@ class ParsingLogic {
       val words = WordTokenizer.tokenizeRaw(sample)[0].joinToString(" ")
       val matched = extractor.match(words, true)
       matched.forEach { mr ->
-        if (mr.resource != null && (mr.start != mr.end || !isBadMatchedResource(posTags[mr.start]))) {
+        if (mr.resource != null &&
+            (mr.start != mr.end || posTags.size <= mr.start
+                || !isBadMatchedResource(posTags[mr.start]))) {
           if (mr.resource.type != ResourceType.Property && mr.resource.instanceOf != null)
             entities.add(mr)
           else if (mr.resource.type == ResourceType.Property) relations.add(mr)
