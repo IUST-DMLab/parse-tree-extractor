@@ -20,5 +20,6 @@ class ApplicationStartupRunner implements CommandLineRunner {
     if (args.length == 0) return;
     if (args[0].equals("write")) parsingLogic.writeParses();
     if (args[0].equals("sizes")) parsingLogic.writeSizes();
+    if (args[0].equals("patterns")) parsingLogic.writePatterns();
   }
 }

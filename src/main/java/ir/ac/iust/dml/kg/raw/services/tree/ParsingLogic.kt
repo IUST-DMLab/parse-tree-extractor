@@ -2,9 +2,17 @@ package ir.ac.iust.dml.kg.raw.services.tree
 
 import edu.stanford.nlp.ling.TaggedWord
 import ir.ac.iust.dml.kg.raw.DependencyParser
+import ir.ac.iust.dml.kg.raw.WordTokenizer
 import ir.ac.iust.dml.kg.raw.services.access.entities.DependencyPattern
+import ir.ac.iust.dml.kg.raw.services.access.entities.RelationDefinition
 import ir.ac.iust.dml.kg.raw.services.access.repositories.DependencyPatternRepository
 import ir.ac.iust.dml.kg.raw.services.access.repositories.OccurrenceRepository
+import ir.ac.iust.dml.kg.raw.utils.ConfigReader
+import ir.ac.iust.dml.kg.resource.extractor.client.ExtractorClient
+import ir.ac.iust.dml.kg.resource.extractor.client.MatchedResource
+import ir.ac.iust.dml.kg.resource.extractor.client.ResourceType
+import ir.ac.iust.dml.kg.services.client.ApiClient
+import ir.ac.iust.dml.kg.services.client.swagger.V1triplesApi
 import org.apache.commons.logging.LogFactory
 import org.bson.types.ObjectId
 import org.maltparser.concurrent.graph.ConcurrentDependencyGraph
@@ -19,6 +27,15 @@ class ParsingLogic {
   @Autowired lateinit private var patternDao: DependencyPatternRepository
   private val logger = LogFactory.getLog(javaClass)
   private val DEP_CALC_ERROR = "error"
+  private val extractor = ExtractorClient(ConfigReader.getString("resource-extractor", "http://dmls.iust.ac.ir:8094"))
+  val tripleApi: V1triplesApi
+
+  init {
+    val client = ApiClient()
+    client.basePath = ConfigReader.getString("knowledge.store.url", "http://dmls.iust.ac.ir:8091/rs")
+    client.connectTimeout = 1200000
+    tripleApi = V1triplesApi(client)
+  }
 
   fun findOne(id: String) = dao.findOne(ObjectId(id))
 
@@ -148,5 +165,105 @@ class ParsingLogic {
     }
   }
 
-  fun test() = "test"
+  fun writePatterns() {
+    var page = 0
+    val start = System.currentTimeMillis()
+    do {
+      val pages = patternDao.findAll(PageRequest(page++, 10))
+      pages.forEach { if (calculatePatterns(it)) patternDao.save(it) }
+      logger.info("getting page $page form ${pages.totalPages}. " +
+          "time passed: ${(System.currentTimeMillis() - start) / 1000} seconds")
+    } while (pages.hasNext())
+  }
+
+  private data class MatchCount(var resource: MatchedResource, var count: Int)
+
+  private val posTagMatcher = Regex("\\[(\\w+)??,")
+
+  fun calculatePatterns(pattern: DependencyPattern): Boolean {
+    if (pattern.relations.isNotEmpty()) pattern.relations.clear()
+
+    // sample pattern is: [AJe,5,SBJ][N,1,MOZ][Ne,5,MOS][AJ,3,NPOSTMOD][V,0,ROOT][PUNC,5,PUNC]
+    // pos tags are list of AJe, N, Ne, AJ, V, PUNC
+    val posTags = posTagMatcher.findAll(pattern.pattern!!).map { it.groupValues[1] }.toList()
+
+    var checkedSamples = 0
+    val countSet = mutableMapOf<Int, MatchCount>()
+    val relationSet = mutableMapOf<Int, MatchCount>()
+    pattern.samples.forEach { sample ->
+      if (checkedSamples >= 10) return@forEach
+      val entities = mutableListOf<MatchedResource>()
+      val relations = mutableListOf<MatchedResource>()
+
+      val words = WordTokenizer.tokenizeRaw(sample)[0].joinToString(" ")
+      val matched = extractor.match(words, true)
+      matched.forEach { mr ->
+        if (mr.resource != null && (mr.start != mr.end || !isBadMatchedResource(posTags[mr.start]))) {
+          if (mr.resource.type != ResourceType.Property && mr.resource.instanceOf != null)
+            entities.add(mr)
+          else if (mr.resource.type == ResourceType.Property) relations.add(mr)
+        }
+      }
+
+      if (entities.size >= 2) {
+        entities.forEach {
+          val key = it.start.hashCode() * 31 + it.end.hashCode()
+          val c = countSet.getOrPut(key, { MatchCount(it, 0) })
+          c.count++
+        }
+        if (relations.size == 1) {
+          val relation = relations[0]
+          val key = relation.start.hashCode() * 31 + relation.end.hashCode()
+          val c = relationSet.getOrPut(key, { MatchCount(relation, 0) })
+          c.count++
+        }
+      }
+      checkedSamples++
+    }
+
+    if (countSet.size < 2) return false
+    val minCount = checkedSamples * 0.8
+    val topResources = countSet.filter { it.value.count > minCount }.toList()
+    val resourcePair = mutableListOf<Pair<MatchCount, MatchCount>>()
+
+    for (i in 0..topResources.size - 2)
+      for (j in i + 1..topResources.size - 1) {
+        val first = topResources[i].second
+        val second = topResources[j].second
+        if (first.resource.end < second.resource.start) resourcePair.add(Pair(first, second))
+      }
+
+    logger.info("found ${countSet.size} resources and ${relationSet.size} relations. " +
+        "total ${resourcePair.size} resource pair is examining ...")
+    resourcePair.forEach { pair ->
+      val definition = RelationDefinition()
+      pattern.relations.add(definition)
+      definition.subject = addRange(pair.first.resource)
+      definition.`object` = addRange(pair.second.resource)
+      definition.accuracy = (pair.first.count + pair.second.count) / (2 * checkedSamples.toDouble())
+      relationSet.forEach { relation ->
+        logger.trace("finding a relation between ${pair.first.resource.resource.iri} and " +
+            "${relation.value.resource.resource.iri} and ${pair.second.resource.resource.iri}")
+        val search = tripleApi.search1(null,
+            pair.first.resource.resource.iri,
+            relation.value.resource.resource.iri,
+            pair.second.resource.resource.iri, 0, 1)
+        if (search.data.isNotEmpty()) {
+          logger.info("found!! a relation between ${pair.first.resource.resource.iri} and " +
+              "${relation.value.resource.resource.iri} and ${pair.second.resource.resource.iri}")
+          definition.predicate = addRange(relation.value.resource)
+          definition.accuracy = 1.0
+        }
+      }
+    }
+
+    return true
+  }
+
+  private fun isBadMatchedResource(posTag: String) = posTag == "P" || posTag == "CONJ" || posTag == "V"
+
+  fun addRange(resource: MatchedResource, list: MutableList<Int> = mutableListOf()): List<Int> {
+    list += resource.start..resource.end + 1
+    return list
+  }
 }
