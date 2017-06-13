@@ -189,7 +189,7 @@ class ParsingLogic {
   private val posTagMatcher = Regex("\\[(\\w+)??,")
 
   fun calculatePatterns(pattern: DependencyPattern): Boolean {
-    if (pattern.relations.isNotEmpty()) pattern.relations.clear()
+//    if (pattern.relations.isNotEmpty()) pattern.relations.clear()
 
     // sample pattern is: [AJe,5,SBJ][N,1,MOZ][Ne,5,MOS][AJ,3,NPOSTMOD][V,0,ROOT][PUNC,5,PUNC]
     // pos tags are list of AJe, N, Ne, AJ, V, PUNC
@@ -247,9 +247,11 @@ class ParsingLogic {
         "total ${resourcePair.size} resource pair is examining ...")
     resourcePair.forEach { pair ->
       val definition = RelationDefinition()
-      pattern.relations.add(definition)
       definition.subject = addRange(pair.first.resource)
       definition.`object` = addRange(pair.second.resource)
+      val oldDefinition = findOld(pattern.relations, definition)
+      if (oldDefinition != null) pattern.relations.remove(oldDefinition)
+      pattern.relations.add(definition)
       definition.accuracy = (pair.first.count + pair.second.count) / (2 * checkedSamples.toDouble())
       relationSet.forEach { relation ->
         logger.trace("finding a relation between ${pair.first.resource.resource.iri} and " +
@@ -268,6 +270,17 @@ class ParsingLogic {
     }
 
     return true
+  }
+
+  private fun key(relationDefinition: RelationDefinition): String {
+    return relationDefinition.subject.map { it.toString() }.joinToString("-") + "/" +
+        relationDefinition.`object`.map { it.toString() }.joinToString("-")
+  }
+
+  private fun findOld(relations: List<RelationDefinition>, newRelation: RelationDefinition): RelationDefinition? {
+    val newKey = key(newRelation)
+    relations.forEach { if (key(it) == newKey) return it }
+    return null
   }
 
   private fun isBadMatchedResource(posTag: String) = posTag == "P" || posTag == "CONJ" || posTag == "V"
