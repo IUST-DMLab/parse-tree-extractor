@@ -8,6 +8,7 @@ import ir.ac.iust.dml.kg.raw.services.access.entities.RelationDefinition
 import ir.ac.iust.dml.kg.raw.services.access.repositories.DependencyPatternRepository
 import ir.ac.iust.dml.kg.raw.services.access.repositories.OccurrenceRepository
 import ir.ac.iust.dml.kg.raw.utils.ConfigReader
+import ir.ac.iust.dml.kg.raw.utils.dump.triple.TripleData
 import ir.ac.iust.dml.kg.resource.extractor.client.ExtractorClient
 import ir.ac.iust.dml.kg.resource.extractor.client.MatchedResource
 import ir.ac.iust.dml.kg.resource.extractor.client.ResourceType
@@ -114,18 +115,8 @@ class ParsingLogic {
             val posTags = mutableListOf<TaggedWord>()
             it.words.forEachIndexed { index, word -> posTags.add(TaggedWord(word, it.posTags[index])) }
             val depTree = DependencyParser.parse(posTags)
-            if (depTree != null) {
-              val hashBuilder = StringBuilder()
-              for (index in 1..depTree.nTokenNodes()) {
-                val token = depTree.getTokenNode(index)
-                hashBuilder.append('[')
-                    .append(token.getLabel("POSTAG"))
-                    .append(',').append(token.headIndex)
-                    .append(',').append(token.getLabel("DEPREL"))
-                    .append(']')
-              }
-              it.depTreeHash = hashBuilder.toString()
-            } else it.depTreeHash = DEP_CALC_ERROR
+            if (depTree != null) it.depTreeHash = buildTreeHash(depTree)
+            else it.depTreeHash = DEP_CALC_ERROR
             dao.save(it)
           }
           if (it.depTreeHash != DEP_CALC_ERROR) {
@@ -165,6 +156,19 @@ class ParsingLogic {
     }
   }
 
+  private fun buildTreeHash(depTree: ConcurrentDependencyGraph): String {
+    val hashBuilder = StringBuilder()
+    for (index in 1..depTree.nTokenNodes()) {
+      val token = depTree.getTokenNode(index)
+      hashBuilder.append('[')
+          .append(token.getLabel("POSTAG"))
+          .append(',').append(token.headIndex)
+          .append(',').append(token.getLabel("DEPREL"))
+          .append(']')
+    }
+    return hashBuilder.toString()
+  }
+
   fun writePatterns() {
     var page = 0
     val start = System.currentTimeMillis()
@@ -196,7 +200,7 @@ class ParsingLogic {
       val relations = mutableListOf<MatchedResource>()
 
       val words = WordTokenizer.tokenizeRaw(sample)[0].joinToString(" ")
-      val matched = extractor.match(words, true)
+      val matched = extractor.match(words, false)
       matched.forEach { mr ->
         if (mr.resource != null &&
             (mr.start != mr.end || posTags.size <= mr.start
@@ -268,4 +272,29 @@ class ParsingLogic {
     list += resource.start..resource.end + 1
     return list
   }
+
+  fun predict(text: String): List<TripleData> {
+    val triples = mutableListOf<TripleData>()
+    val trees = DependencyParser.parseRaw(text)
+    trees.forEach { tree ->
+      try {
+        val pattern = patternDao.findByPattern(buildTreeHash(tree)) ?: return@forEach
+        val words = getWords(tree)
+        pattern.relations.filter { it.predicate != null && it.predicate.isNotEmpty() }.forEach { relation ->
+          val triple = TripleData()
+          triple.subject = relation.subject.map { words[it] }.joinToString(" ")
+          triple.predicate = relation.predicate.map { words[it] }.joinToString(" ")
+          triple.objekt = relation.`object`.map { words[it] }.joinToString(" ")
+          triples.add(triple)
+        }
+      } catch (e: Throwable) {
+
+      }
+    }
+    return triples
+  }
+
+
+  fun getWords(graph: ConcurrentDependencyGraph)
+      = (1..graph.nTokenNodes()).map { graph.getDependencyNode(it).getLabel("FORM") }
 }
