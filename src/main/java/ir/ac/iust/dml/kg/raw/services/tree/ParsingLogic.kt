@@ -273,7 +273,7 @@ class ParsingLogic {
   private fun isBadMatchedResource(posTag: String) = posTag == "P" || posTag == "CONJ" || posTag == "V"
 
   fun addRange(resource: MatchedResource, list: MutableList<Int> = mutableListOf()): List<Int> {
-    list += resource.start..resource.end + 1
+    list += resource.start..resource.end
     return list
   }
 
