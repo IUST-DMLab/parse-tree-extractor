@@ -59,7 +59,11 @@ class ParsingLogic {
     return result
   }
 
-  fun save(pattern: DependencyPattern) = patternDao.save(pattern)
+  fun save(pattern: DependencyPattern): DependencyPattern {
+    val oldPattern = patternDao.findByPattern(pattern.pattern)
+    oldPattern.relations = pattern.relations
+    return patternDao.save(oldPattern)
+  }
 
   fun dependencyText(text: String) = convert(DependencyParser.parseRaw(text))
 
@@ -285,6 +289,10 @@ class ParsingLogic {
           triple.subject = relation.subject.map { words[it] }.joinToString(" ")
           triple.predicate = relation.predicate.map { words[it] }.joinToString(" ")
           triple.objekt = relation.`object`.map { words[it] }.joinToString(" ")
+          triple.source = words.joinToString(" ")
+          triple.templateName = "raw text"
+          triple.templateNameFull = "raw text"
+          triple.templateType = "raw text"
           triples.add(triple)
         }
       } catch (e: Throwable) {
