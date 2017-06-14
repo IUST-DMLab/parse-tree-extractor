@@ -178,7 +178,13 @@ class ParsingLogic {
     val start = System.currentTimeMillis()
     do {
       val pages = patternDao.findAll(PageRequest(page++, 10))
-      pages.forEach { if (calculatePatterns(it, removeOld)) patternDao.save(it) }
+      pages.forEach {
+        try {
+          if (calculatePatterns(it, removeOld)) patternDao.save(it)
+        } catch (th: Throwable) {
+          logger.error(th)
+        }
+      }
       logger.info("getting page $page form ${pages.totalPages}. " +
           "time passed: ${(System.currentTimeMillis() - start) / 1000} seconds")
     } while (pages.hasNext())
