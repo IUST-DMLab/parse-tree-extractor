@@ -173,12 +173,12 @@ class ParsingLogic {
     return hashBuilder.toString()
   }
 
-  fun writePatterns() {
+  fun writePatterns(removeOld: Boolean = false) {
     var page = 0
     val start = System.currentTimeMillis()
     do {
       val pages = patternDao.findAll(PageRequest(page++, 10))
-      pages.forEach { if (calculatePatterns(it)) patternDao.save(it) }
+      pages.forEach { if (calculatePatterns(it, removeOld)) patternDao.save(it) }
       logger.info("getting page $page form ${pages.totalPages}. " +
           "time passed: ${(System.currentTimeMillis() - start) / 1000} seconds")
     } while (pages.hasNext())
@@ -188,8 +188,8 @@ class ParsingLogic {
 
   private val posTagMatcher = Regex("\\[(\\w+)??,")
 
-  fun calculatePatterns(pattern: DependencyPattern): Boolean {
-//    if (pattern.relations.isNotEmpty()) pattern.relations.clear()
+  fun calculatePatterns(pattern: DependencyPattern, removeOld: Boolean): Boolean {
+    if (removeOld && pattern.relations.isNotEmpty()) pattern.relations.clear()
 
     // sample pattern is: [AJe,5,SBJ][N,1,MOZ][Ne,5,MOS][AJ,3,NPOSTMOD][V,0,ROOT][PUNC,5,PUNC]
     // pos tags are list of AJe, N, Ne, AJ, V, PUNC
@@ -204,7 +204,7 @@ class ParsingLogic {
       val relations = mutableListOf<MatchedResource>()
 
       val words = WordTokenizer.tokenizeRaw(sample)[0].joinToString(" ")
-      val matched = extractor.match(words, false)
+      val matched = extractor.match(words, true)
       matched.forEach { mr ->
         if (mr.resource != null &&
             (mr.start != mr.end || posTags.size <= mr.start
