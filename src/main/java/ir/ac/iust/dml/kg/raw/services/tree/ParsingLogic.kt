@@ -364,16 +364,19 @@ class ParsingLogic : RawTripleExtractor {
     val type = object : TypeToken<Map<String, String>>() {}.type
     val gson = Gson()
     var numberOfWrittenTriples = 0
+    var numberOfCheckedArticles = 0
     RawTripleExporter(ConfigReader.getPath("parsing.mongo.export", "~/raw/parsing/wikiText.json")).use { exporter ->
       files.forEach {
         val articleText: Map<String, String> = gson.fromJson(
             InputStreamReader(FileInputStream(it.toFile()), "UTF8"), type)
         articleText.values.forEach { text ->
+          numberOfCheckedArticles++
           predict(object : TripleExtractionListener {
             override fun tripleExtracted(triple: RawTriple) {
               exporter.write(triple)
               numberOfWrittenTriples++
-              logger.info("$numberOfWrittenTriples triples written to file. $triple")
+              logger.info("$numberOfWrittenTriples triples written to file" +
+                  " (total $numberOfCheckedArticles articles checked.)\n. $triple")
             }
           }, "raw://dmls.iust.ac.ir/wikiRaw", Date().toString(), text)
         }
