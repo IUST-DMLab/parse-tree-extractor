@@ -1,5 +1,7 @@
 package ir.ac.iust.dml.kg.raw.services.tree
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import edu.stanford.nlp.ling.TaggedWord
 import ir.ac.iust.dml.kg.raw.DependencyParser
 import ir.ac.iust.dml.kg.raw.POSTagger
@@ -14,6 +16,7 @@ import ir.ac.iust.dml.kg.raw.triple.RawTripleBuilder
 import ir.ac.iust.dml.kg.raw.triple.RawTripleExporter
 import ir.ac.iust.dml.kg.raw.triple.RawTripleExtractor
 import ir.ac.iust.dml.kg.raw.utils.ConfigReader
+import ir.ac.iust.dml.kg.raw.utils.PathWalker
 import ir.ac.iust.dml.kg.resource.extractor.client.ExtractorClient
 import ir.ac.iust.dml.kg.resource.extractor.client.MatchedResource
 import ir.ac.iust.dml.kg.resource.extractor.client.ResourceType
@@ -26,6 +29,8 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import java.io.FileInputStream
+import java.io.InputStreamReader
 import java.nio.file.Files
 import java.util.*
 
@@ -313,7 +318,6 @@ class ParsingLogic : RawTripleExtractor {
         System.currentTimeMillis(), System.currentTimeMillis().toString(), true)
     val path = ConfigReader.getPath("parsing.mongo.export", "~/raw/parsing/mongo.json")
     if (!Files.exists(path.parent)) Files.createDirectories(path.parent)
-    val spaceSplitRegex = Regex("\\s+")
     var numberOfWrittenTriples = 0
     RawTripleExporter(path).use { exporter ->
       do {
@@ -350,20 +354,29 @@ class ParsingLogic : RawTripleExtractor {
   }
 
   fun extractFromText() {
-    val path = ConfigReader.getPath("parsing.text.export", "~/raw/parsing/raw.txt")
+    val path = ConfigReader.getPath("parsing.text.export", "~/raw/parsing/texts")
     if (!Files.exists(path.parent)) Files.createDirectories(path.parent)
-    if (Files.exists(path)) {
-      logger.error("file ${path.toAbsolutePath()} is not existed.")
+    if (!Files.exists(path)) {
+      logger.error("folder ${path.toAbsolutePath()} is not existed.")
       return
     }
-    val text = Files.readAllLines(path)
-    RawTripleExporter(ConfigReader.getPath("parsing.mongo.export", "~/raw/parsing/mongo.json")).use {
-      text.forEach { line ->
-        predict(object : TripleExtractionListener {
-          override fun tripleExtracted(triple: RawTriple) {
-            it.write(triple)
-          }
-        }, "raw://dmls.iust.ac.ir/wikiRaw", Date().toString(), line)
+    val files = PathWalker.getPath(path, Regex("\\d+.json"))
+    val type = object : TypeToken<Map<String, String>>() {}.type
+    val gson = Gson()
+    var numberOfWrittenTriples = 0
+    RawTripleExporter(ConfigReader.getPath("parsing.mongo.export", "~/raw/parsing/wikiText.json")).use { exporter ->
+      files.forEach {
+        val articleText: Map<String, String> = gson.fromJson(
+            InputStreamReader(FileInputStream(it.toFile()), "UTF8"), type)
+        articleText.values.forEach { text ->
+          predict(object : TripleExtractionListener {
+            override fun tripleExtracted(triple: RawTriple) {
+              exporter.write(triple)
+              numberOfWrittenTriples++
+              logger.info("$numberOfWrittenTriples triples written to file. $triple")
+            }
+          }, "raw://dmls.iust.ac.ir/wikiRaw", Date().toString(), text)
+        }
       }
     }
   }
