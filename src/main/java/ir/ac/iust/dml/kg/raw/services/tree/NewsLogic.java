@@ -1,9 +1,5 @@
 package ir.ac.iust.dml.kg.raw.services.tree;
 
-import com.google.common.collect.Lists;
-import edu.stanford.nlp.ling.TaggedWord;
-import ir.ac.iust.dml.kg.raw.*;
-import ir.ac.iust.dml.kg.raw.services.access.entities.Occurrence;
 import ir.ac.iust.dml.kg.raw.services.access.repositories.OccurrenceRepository;
 import ir.ac.iust.dml.kg.raw.utils.ConfigReader;
 import org.apache.commons.io.FileUtils;
@@ -12,12 +8,9 @@ import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 @Service
@@ -51,30 +44,30 @@ public class NewsLogic {
         Optional<LdLocale> lang = languageDetector.detect(textObject);
 */
 
-        for (String line : lines) {
-            List<String> sentences = SentenceTokenizer.SentenceSplitterRaw(line);
-            for (String sentence : sentences) {
-                if(sentence.length()>20)
-                if(!sentence.contains("~") && !sentence.contains("َ")&& !sentence.contains("ُ"))
-                {
-                    Occurrence occurrence = dao.getByNormalized(sentence);
-                    if (occurrence == null) {
-                        occurrence = new Occurrence();
-                        occurrence.setOccurrence(1);
-                        occurrence.setRaw(sentence);
-                        occurrence.setNormalized(Normalizer.normalize(sentence));
-                        final List<String> words = WordTokenizer.tokenize(sentence);
-                        occurrence.setWords(words);
-                        occurrence.setPosTags(Lists.transform(POSTagger.tag(words), TaggedWord::tag));
-                    } else occurrence.setOccurrence(occurrence.getOccurrence() + 1);
-                    dao.save(occurrence);
-                }
-
-                sentenceIndex++;
-                if (sentenceIndex % 1000 == 0) logger.info(sentenceIndex);
-            }
-
-        }
+//        for (String line : lines) {
+//            List<String> sentences = SentenceTokenizer.SentenceSplitterRaw(line);
+//            for (String sentence : sentences) {
+//                if(sentence.length()>20)
+//                if(!sentence.contains("~") && !sentence.contains("َ")&& !sentence.contains("ُ"))
+//                {
+//                    Occurrence occurrence = dao.getByNormalized(sentence);
+//                    if (occurrence == null) {
+//                        occurrence = new Occurrence();
+//                        occurrence.setOccurrence(1);
+//                        occurrence.setRaw(sentence);
+//                        occurrence.setNormalized(Normalizer.normalize(sentence));
+//                        final List<String> words = WordTokenizer.tokenize(sentence);
+//                        occurrence.setWords(words);
+//                        occurrence.setPosTags(Lists.transform(POSTagger.tag(words), TaggedWord::tag));
+//                    } else occurrence.setOccurrence(occurrence.getOccurrence() + 1);
+//                    dao.save(occurrence);
+//                }
+//
+//                sentenceIndex++;
+//                if (sentenceIndex % 1000 == 0) logger.info(sentenceIndex);
+//            }
+//
+//        }
 
     }
 }

@@ -2,13 +2,18 @@ package ir.ac.iust.dml.kg.raw.services.tree
 
 import edu.stanford.nlp.ling.TaggedWord
 import ir.ac.iust.dml.kg.raw.DependencyParser
+import ir.ac.iust.dml.kg.raw.POSTagger
+import ir.ac.iust.dml.kg.raw.SentenceTokenizer
 import ir.ac.iust.dml.kg.raw.WordTokenizer
 import ir.ac.iust.dml.kg.raw.services.access.entities.DependencyPattern
 import ir.ac.iust.dml.kg.raw.services.access.entities.RelationDefinition
 import ir.ac.iust.dml.kg.raw.services.access.repositories.DependencyPatternRepository
 import ir.ac.iust.dml.kg.raw.services.access.repositories.OccurrenceRepository
+import ir.ac.iust.dml.kg.raw.triple.RawTriple
+import ir.ac.iust.dml.kg.raw.triple.RawTripleBuilder
+import ir.ac.iust.dml.kg.raw.triple.RawTripleExporter
+import ir.ac.iust.dml.kg.raw.triple.RawTripleExtractor
 import ir.ac.iust.dml.kg.raw.utils.ConfigReader
-import ir.ac.iust.dml.kg.raw.utils.dump.triple.TripleData
 import ir.ac.iust.dml.kg.resource.extractor.client.ExtractorClient
 import ir.ac.iust.dml.kg.resource.extractor.client.MatchedResource
 import ir.ac.iust.dml.kg.resource.extractor.client.ResourceType
@@ -21,9 +26,12 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import java.nio.file.Files
+import java.util.*
 
 @Service
-class ParsingLogic {
+class ParsingLogic : RawTripleExtractor {
+
   @Autowired lateinit private var dao: OccurrenceRepository
   @Autowired lateinit private var patternDao: DependencyPatternRepository
   private val logger = LogFactory.getLog(javaClass)
@@ -296,32 +304,106 @@ class ParsingLogic {
     return list
   }
 
-  fun predict(text: String): List<TripleData> {
-    val triples = mutableListOf<TripleData>()
-    val trees = DependencyParser.parseRaw(text)
-    trees.forEach { tree ->
-      try {
-        val pattern = patternDao.findByPattern(buildTreeHash(tree)) ?: return@forEach
-        val words = getWords(tree)
-        pattern.relations.filter { it.predicate != null && it.predicate.isNotEmpty() }.forEach { relation ->
-          val triple = TripleData()
-          triple.subject = relation.subject.map { words[it] }.joinToString(" ")
-          triple.predicate = relation.predicate.map { words[it] }.joinToString(" ")
-          triple.objekt = relation.`object`.map { words[it] }.joinToString(" ")
-          triple.source = words.joinToString(" ")
-          triple.templateName = "raw text"
-          triple.templateNameFull = "raw text"
-          triple.templateType = "raw text"
-          triples.add(triple)
-        }
-      } catch (e: Throwable) {
+  fun getWords(graph: ConcurrentDependencyGraph)
+      = (1..graph.nTokenNodes()).map { graph.getDependencyNode(it).getLabel("FORM") }
 
+  fun extractFromDb() {
+    var page = 0
+    val rtb = RawTripleBuilder("dependencyExtractor", "mongo://dmls.iust.ac.ir/DistantSupervision",
+        System.currentTimeMillis(), System.currentTimeMillis().toString(), true)
+    val path = ConfigReader.getPath("parsing.mongo.export", "~/raw/parsing/mongo.json")
+    if (!Files.exists(path.parent)) Files.createDirectories(path.parent)
+    val spaceSplitRegex = Regex("\\s+")
+    var numberOfWrittenTriples = 0
+    RawTripleExporter(path).use { exporter ->
+      do {
+        val data = patternDao.search(page++, 20, null, null, true)
+        data.content.forEach { pattern ->
+          pattern.samples.forEach { sample ->
+            try {
+              val sampleParts = WordTokenizer.tokenize(sample)
+              val triple = rtb.create()
+              pattern.relations.forEach relation@ { relation ->
+                val subject = getText(sampleParts, relation.subject) ?: return@relation
+                val predicate = getText(sampleParts, relation.predicate) ?: return@relation
+                val `object` = getText(sampleParts, relation.`object`) ?: return@relation
+                triple.subject(subject).predicate(predicate).`object`(`object`)
+                exporter.write(triple)
+                numberOfWrittenTriples++
+                if (numberOfWrittenTriples % 100 == 0) logger.info("$numberOfWrittenTriples triples written to file")
+              }
+            } catch (th: Throwable) {
+              logger.error(th)
+            }
+          }
+        }
+      } while (data.hasNext())
+    }
+  }
+
+  fun getText(words: List<String>, indexes: List<Int>): String? {
+    val builder = StringBuilder()
+    indexes.forEach { builder.append(words[it]).append(' ') }
+    if (builder.isEmpty()) return null
+    builder.setLength(builder.length - 1)
+    return builder.toString()
+  }
+
+  fun extractFromText() {
+    val path = ConfigReader.getPath("parsing.text.export", "~/raw/parsing/raw.txt")
+    if (!Files.exists(path.parent)) Files.createDirectories(path.parent)
+    if (Files.exists(path)) {
+      logger.error("file ${path.toAbsolutePath()} is not existed.")
+      return
+    }
+    val text = Files.readAllLines(path)
+    RawTripleExporter(ConfigReader.getPath("parsing.mongo.export", "~/raw/parsing/mongo.json")).use {
+      text.forEach { line ->
+        predict(object : TripleExtractionListener {
+          override fun tripleExtracted(triple: RawTriple) {
+            it.write(triple)
+          }
+        }, "raw://dmls.iust.ac.ir/wikiRaw", Date().toString(), line)
       }
     }
+  }
+
+  override fun predict(source: String?, version: String?, text: String?): MutableList<RawTriple> {
+    val triples = mutableListOf<RawTriple>()
+    predict(object : TripleExtractionListener {
+      override fun tripleExtracted(triple: RawTriple) {
+        triples.add(triple)
+      }
+    }, source, version, text)
     return triples
   }
 
+  interface TripleExtractionListener {
+    fun tripleExtracted(triple: RawTriple)
+  }
 
-  fun getWords(graph: ConcurrentDependencyGraph)
-      = (1..graph.nTokenNodes()).map { graph.getDependencyNode(it).getLabel("FORM") }
+  fun predict(listener: TripleExtractionListener,
+              source: String?, version: String?, text: String?) {
+    if (text == null) return
+    val rtb = RawTripleBuilder("dependencyExtractor", source ?: "source://unknown",
+        System.currentTimeMillis(), version ?: System.currentTimeMillis().toString(), true)
+    val sentence = SentenceTokenizer.SentenceSplitterRaw(text)
+    val taggedWords = sentence.map { POSTagger.tag(WordTokenizer.tokenize(it)) }
+    val trees = DependencyParser.parseSentences(taggedWords)
+    trees.forEachIndexed { index, tree ->
+      try {
+        val pattern = patternDao.findByPattern(buildTreeHash(tree)) ?: return@forEachIndexed
+        val words = getWords(tree)
+        pattern.relations.filter { it.predicate != null && it.predicate.isNotEmpty() }.forEach { relation ->
+          val triple = rtb.create()
+          triple.subject = relation.subject.map { words[it] }.joinToString(" ")
+          triple.predicate = relation.predicate.map { words[it] }.joinToString(" ")
+          triple.`object` = relation.`object`.map { words[it] }.joinToString(" ")
+          triple.rawText = sentence[index]
+          listener.tripleExtracted(triple)
+        }
+      } catch (e: Throwable) {
+      }
+    }
+  }
 }
