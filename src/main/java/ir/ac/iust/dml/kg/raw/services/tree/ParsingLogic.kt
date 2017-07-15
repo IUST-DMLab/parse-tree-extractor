@@ -314,7 +314,7 @@ class ParsingLogic : RawTripleExtractor {
 
   fun extractFromDb() {
     var page = 0
-    val rtb = RawTripleBuilder("dependencyExtractor", "mongo://dmls.iust.ac.ir/DistantSupervision",
+    val rtb = RawTripleBuilder("dependencyExtractor", "http://dmls.iust.ac.ir/mongo/DistantSupervision",
         System.currentTimeMillis(), System.currentTimeMillis().toString(), true)
     val path = ConfigReader.getPath("raw.dependency.pattern.output.mongo", "~/raw/parsing/mongo.json")
     if (!Files.exists(path.parent)) Files.createDirectories(path.parent)
@@ -331,7 +331,7 @@ class ParsingLogic : RawTripleExtractor {
                 val subject = getText(sampleParts, relation.subject) ?: return@relation
                 val predicate = getText(sampleParts, relation.predicate) ?: return@relation
                 val `object` = getText(sampleParts, relation.`object`) ?: return@relation
-                triple.subject(subject).predicate(predicate).`object`(`object`)
+                triple.subject(subject).predicate(predicate).`object`(`object`).needsMapping(true)
                 exporter.write(triple)
                 numberOfWrittenTriples++
                 if (numberOfWrittenTriples % 100 == 0) logger.info("$numberOfWrittenTriples triples written to file")
@@ -378,7 +378,7 @@ class ParsingLogic : RawTripleExtractor {
               logger.info("$numberOfWrittenTriples triples written to file" +
                   " (total $numberOfCheckedArticles articles checked.)\n. $triple")
             }
-          }, "raw://dmls.iust.ac.ir/wikiRaw", Date().toString(), text)
+          }, "http://dmls.iust.ac.ir/raw/wiki", Date().toString(), text)
         }
       }
     }
@@ -401,7 +401,7 @@ class ParsingLogic : RawTripleExtractor {
   fun predict(listener: TripleExtractionListener,
               source: String?, version: String?, text: String?) {
     if (text == null) return
-    val rtb = RawTripleBuilder("dependencyExtractor", source ?: "source://unknown",
+    val rtb = RawTripleBuilder("dependencyExtractor", source ?: "http://fkg.iust.ac.ir/raw/unknown",
         System.currentTimeMillis(), version ?: System.currentTimeMillis().toString(), true)
     val sentence = SentenceTokenizer.SentenceSplitterRaw(text)
     val taggedWords = sentence.map { POSTagger.tag(WordTokenizer.tokenize(it)) }
