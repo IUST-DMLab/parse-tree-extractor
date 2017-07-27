@@ -316,7 +316,7 @@ class ParsingLogic : RawTripleExtractor {
     var page = 0
     val rtb = RawTripleBuilder("dependencyExtractor", "mongo://dmls.iust.ac.ir/DistantSupervision",
         System.currentTimeMillis(), System.currentTimeMillis().toString(), true)
-    val path = ConfigReader.getPath("parsing.mongo.export", "~/raw/parsing/mongo.json")
+    val path = ConfigReader.getPath("raw.dependency.pattern.output.mongo", "~/raw/parsing/mongo.json")
     if (!Files.exists(path.parent)) Files.createDirectories(path.parent)
     var numberOfWrittenTriples = 0
     RawTripleExporter(path).use { exporter ->
@@ -354,7 +354,7 @@ class ParsingLogic : RawTripleExtractor {
   }
 
   fun extractFromText() {
-    val path = ConfigReader.getPath("parsing.text.export", "~/raw/parsing/texts")
+    val path = ConfigReader.getPath("raw.dependency.pattern.input.texts", "~/raw/parsing/texts")
     if (!Files.exists(path.parent)) Files.createDirectories(path.parent)
     if (!Files.exists(path)) {
       logger.error("folder ${path.toAbsolutePath()} is not existed.")
@@ -365,7 +365,7 @@ class ParsingLogic : RawTripleExtractor {
     val gson = Gson()
     var numberOfWrittenTriples = 0
     var numberOfCheckedArticles = 0
-    RawTripleExporter(ConfigReader.getPath("parsing.mongo.export", "~/raw/parsing/wikiText.json")).use { exporter ->
+    RawTripleExporter(ConfigReader.getPath("raw.dependency.pattern.output.raw", "~/raw/parsing/wikiText.json")).use { exporter ->
       files.forEach {
         val articleText: Map<String, String> = gson.fromJson(
             InputStreamReader(FileInputStream(it.toFile()), "UTF8"), type)
