@@ -384,7 +384,7 @@ class ParsingLogic : RawTripleExtractor {
     }
   }
 
-  override fun predict(source: String?, version: String?, text: String?): MutableList<RawTriple> {
+  override fun extract(source: String?, version: String?, text: String?): MutableList<RawTriple> {
     val triples = mutableListOf<RawTriple>()
     predict(object : TripleExtractionListener {
       override fun tripleExtracted(triple: RawTriple) {

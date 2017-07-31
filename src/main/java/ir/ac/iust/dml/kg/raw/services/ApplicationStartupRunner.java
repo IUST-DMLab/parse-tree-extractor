@@ -2,7 +2,6 @@ package ir.ac.iust.dml.kg.raw.services;
 
 import ir.ac.iust.dml.kg.raw.services.tree.NewsLogic;
 import ir.ac.iust.dml.kg.raw.services.tree.ParsingLogic;
-import ir.ac.iust.dml.kg.raw.services.tree.TripleLogic;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,8 +18,7 @@ class ApplicationStartupRunner implements CommandLineRunner {
   @Autowired
   private NewsLogic newsLogic;
 
-  @Autowired
-  private TripleLogic tripleLogic;
+
 
 
   @Override
@@ -34,6 +32,5 @@ class ApplicationStartupRunner implements CommandLineRunner {
     if (args[0].equals("extractFromDb")) parsingLogic.extractFromDb();
     if (args[0].equals("extract")) parsingLogic.extractFromText();
     if (args[0].equals("newsToDb")) newsLogic.writeToDatabase();
-    if (args[0].equals("writeFilesTriples")) tripleLogic.writeTriplesToDb();
   }
 }
