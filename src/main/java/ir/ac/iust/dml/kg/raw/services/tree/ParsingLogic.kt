@@ -331,7 +331,8 @@ class ParsingLogic : RawTripleExtractor {
                 val subject = getText(sampleParts, relation.subject) ?: return@relation
                 val predicate = getText(sampleParts, relation.predicate) ?: return@relation
                 val `object` = getText(sampleParts, relation.`object`) ?: return@relation
-                triple.subject(subject).predicate(predicate).`object`(`object`).needsMapping(true)
+                triple.subject(subject).predicate(predicate).`object`(`object`)
+                    .needsMapping(true).rawText(sample)
                 exporter.write(triple)
                 numberOfWrittenTriples++
                 if (numberOfWrittenTriples % 100 == 0) logger.info("$numberOfWrittenTriples triples written to file")
