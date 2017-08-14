@@ -35,7 +35,7 @@ import java.nio.file.Files
 import java.util.*
 
 @Service
-class ParsingLogic : RawTripleExtractor {
+public class ParsingLogic : RawTripleExtractor {
 
   @Autowired lateinit private var dao: OccurrenceRepository
   @Autowired lateinit private var patternDao: DependencyPatternRepository
