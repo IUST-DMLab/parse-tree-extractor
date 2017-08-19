@@ -16,6 +16,7 @@ import ir.ac.iust.dml.kg.raw.triple.RawTripleBuilder
 import ir.ac.iust.dml.kg.raw.triple.RawTripleExporter
 import ir.ac.iust.dml.kg.raw.triple.RawTripleExtractor
 import ir.ac.iust.dml.kg.raw.utils.ConfigReader
+import ir.ac.iust.dml.kg.raw.utils.Module
 import ir.ac.iust.dml.kg.raw.utils.PathWalker
 import ir.ac.iust.dml.kg.resource.extractor.client.ExtractorClient
 import ir.ac.iust.dml.kg.resource.extractor.client.MatchedResource
@@ -314,7 +315,7 @@ public class ParsingLogic : RawTripleExtractor {
 
   fun extractFromDb() {
     var page = 0
-    val rtb = RawTripleBuilder("dependencyExtractor", "http://dmls.iust.ac.ir/mongo/DistantSupervision",
+    val rtb = RawTripleBuilder(Module.raw_dependency_pattern.name, "http://dmls.iust.ac.ir/mongo/DistantSupervision",
         System.currentTimeMillis(), System.currentTimeMillis().toString(), true)
     val path = ConfigReader.getPath("raw.dependency.pattern.output.mongo", "~/raw/parsing/mongo.json")
     if (!Files.exists(path.parent)) Files.createDirectories(path.parent)
@@ -402,7 +403,7 @@ public class ParsingLogic : RawTripleExtractor {
   fun predict(listener: TripleExtractionListener,
               source: String?, version: String?, text: String?) {
     if (text == null) return
-    val rtb = RawTripleBuilder("dependencyExtractor", source ?: "http://fkg.iust.ac.ir/raw/unknown",
+    val rtb = RawTripleBuilder(Module.raw_dependency_pattern.name, source ?: "http://fkg.iust.ac.ir/raw/unknown",
         System.currentTimeMillis(), version ?: System.currentTimeMillis().toString(), true)
     val sentence = SentenceTokenizer.SentenceSplitterRaw(text)
     val taggedWords = sentence.map { POSTagger.tag(WordTokenizer.tokenize(it)) }
