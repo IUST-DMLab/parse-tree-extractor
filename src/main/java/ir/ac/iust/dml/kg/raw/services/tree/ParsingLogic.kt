@@ -276,10 +276,10 @@ public class ParsingLogic : RawTripleExtractor {
       relationSet.forEach { relation ->
         logger.trace("finding a relation between ${pair.first.resource.resource.iri} and " +
             "${relation.value.resource.resource.iri} and ${pair.second.resource.resource.iri}")
-        val search = tripleApi.search1(null,
-            pair.first.resource.resource.iri,
-            relation.value.resource.resource.iri,
-            pair.second.resource.resource.iri, 0, 1)
+        val search = tripleApi.search1(null, false,
+            pair.first.resource.resource.iri, false,
+            relation.value.resource.resource.iri, false,
+            pair.second.resource.resource.iri, false, 0, 1)
         if (search.data.isNotEmpty()) {
           logger.info("found!! a relation between ${pair.first.resource.resource.iri} and " +
               "${relation.value.resource.resource.iri} and ${pair.second.resource.resource.iri}")
