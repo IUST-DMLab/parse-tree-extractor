@@ -7,6 +7,7 @@ import ir.ac.iust.dml.kg.raw.DependencyParser
 import ir.ac.iust.dml.kg.raw.POSTagger
 import ir.ac.iust.dml.kg.raw.SentenceTokenizer
 import ir.ac.iust.dml.kg.raw.WordTokenizer
+import ir.ac.iust.dml.kg.raw.extractor.ResolvedEntityToken
 import ir.ac.iust.dml.kg.raw.services.access.entities.DependencyPattern
 import ir.ac.iust.dml.kg.raw.services.access.entities.RelationDefinition
 import ir.ac.iust.dml.kg.raw.services.access.repositories.DependencyPatternRepository
@@ -182,6 +183,18 @@ public class ParsingLogic : RawTripleExtractor {
           .append(token.getLabel("POSTAG"))
           .append(',').append(token.headIndex)
           .append(',').append(token.getLabel("DEPREL"))
+          .append(']')
+    }
+    return hashBuilder.toString()
+  }
+
+  private fun buildTreeHash(depTree: List<ResolvedEntityToken>): String {
+    val hashBuilder = StringBuilder()
+    depTree.forEach {
+      hashBuilder.append('[')
+          .append(it.pos)
+          .append(',').append(it.dep.head)
+          .append(',').append(it.dep.relation)
           .append(']')
     }
     return hashBuilder.toString()
@@ -396,12 +409,35 @@ public class ParsingLogic : RawTripleExtractor {
     return triples
   }
 
+  override fun extract(source: String?, version: String?,
+                       text: MutableList<MutableList<ResolvedEntityToken>>?): MutableList<RawTriple> {
+    if (text == null || text.isEmpty()) return mutableListOf()
+    val triples = mutableListOf<RawTriple>()
+    val rtb = RawTripleBuilder(Module.raw_dependency_pattern.name, source ?: "http://fkg.iust.ac.ir/raw/unknown",
+        System.currentTimeMillis(), version ?: System.currentTimeMillis().toString(), true)
+    text.forEach { sentence ->
+      try {
+        val pattern = patternDao.findByPattern(buildTreeHash(sentence)) ?: return@forEach
+        pattern.relations.filter { it.predicate != null && it.predicate.isNotEmpty() }.forEach { relation ->
+          val triple = rtb.create()
+          triple.subject = relation.subject.map { sentence[it].word }.joinToString(" ")
+          triple.predicate = relation.predicate.map { sentence[it].word }.joinToString(" ")
+          triple.`object` = relation.`object`.map { sentence[it].word }.joinToString(" ")
+          triple.rawText = sentence.joinToString { it.word }
+          triples.add(triple)
+        }
+      } catch (e: Throwable) {
+      }
+    }
+    return triples
+  }
+
   interface TripleExtractionListener {
     fun tripleExtracted(triple: RawTriple)
   }
 
-  fun predict(listener: TripleExtractionListener,
-              source: String?, version: String?, text: String?) {
+  private fun predict(listener: TripleExtractionListener,
+                      source: String?, version: String?, text: String?) {
     if (text == null) return
     val rtb = RawTripleBuilder(Module.raw_dependency_pattern.name, source ?: "http://fkg.iust.ac.ir/raw/unknown",
         System.currentTimeMillis(), version ?: System.currentTimeMillis().toString(), true)
