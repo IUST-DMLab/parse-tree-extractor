@@ -415,9 +415,9 @@ public class ParsingLogic : RawTripleExtractor {
     val triples = mutableListOf<RawTriple>()
     val rtb = RawTripleBuilder(Module.raw_dependency_pattern.name, source ?: "http://fkg.iust.ac.ir/raw/unknown",
         System.currentTimeMillis(), version ?: System.currentTimeMillis().toString(), true)
-    text.forEach { sentence ->
+    for (sentence in text) {
       try {
-        val pattern = patternDao.findByPattern(buildTreeHash(sentence)) ?: return@forEach
+        val pattern = patternDao.findByPattern(buildTreeHash(sentence)) ?: continue
         pattern.relations.filter { it.predicate != null && it.predicate.isNotEmpty() }.forEach { relation ->
           val triple = rtb.create()
           triple.subject = relation.subject.map { sentence[it].word }.joinToString(" ")
