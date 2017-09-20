@@ -47,9 +47,13 @@ object SplitLogic {
 
   fun findConjunctionsAndDep(repositoryPath: Path) {
     val conjWords = mutableMapOf<String, ConjunctionInfo>()
+    var totalNumberOfSentences = 0
+    var totalNumberOfConjunctions = 0
     getSentences(repositoryPath, { sentence ->
+      totalNumberOfSentences++
       sentence.forEach {
         if (it.pos == "CONJ") {
+          totalNumberOfConjunctions++
           val out = sentence.filter { otherWord -> otherWord.dep?.head == it.dep.position }
               .map { it.dep.relation }.joinToString("@")
           val key = it.word + "#" + it.dep?.relation + "#" + out
@@ -62,15 +66,23 @@ object SplitLogic {
 
     val outFolder = ConfigReader.getPath("out")
     if (!Files.exists(outFolder)) Files.createDirectories(outFolder)
+    val MIN_SAMPLE = 10
+    var numberOfWrappedSentences = 0
     PrintWriter(OutputStreamWriter(
         FileOutputStream(outFolder.resolve("stats.txt").toFile()),
         Charset.forName("UTF-8"))).use { out ->
-      conjWords.toList().sortedByDescending { it.second.count }
-          .forEach { out.println("Word $it is a conjunction") }
       out.println("total conditions: ${conjWords.size}")
+      out.println("total number of sentences: $totalNumberOfSentences")
+      out.println("total number of conjunctions: $totalNumberOfConjunctions")
+      conjWords.toList().sortedByDescending { it.second.count }
+          .forEach {
+            if (it.second.count > MIN_SAMPLE) numberOfWrappedSentences += it.second.count
+            out.println("${it.second.count}\t${it.second.conj}\t${it.first}")
+          }
+      out.println("total number of wrapped sentences: $numberOfWrappedSentences")
     }
 
-    conjWords.filter { it.value.count > 10 }.forEach { key, (conj, count, samples) ->
+    conjWords.filter { it.value.count > MIN_SAMPLE }.forEach { key, (conj, count, samples) ->
       val conjFolder = outFolder.resolve(conj)
       if (!Files.exists(conjFolder)) Files.createDirectories(conjFolder)
       PrintWriter(OutputStreamWriter(
