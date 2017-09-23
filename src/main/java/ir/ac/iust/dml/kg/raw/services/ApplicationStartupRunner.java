@@ -1,3 +1,9 @@
+/*
+ * Farsi Knowledge Graph Project
+ *  Iran University of Science and Technology (Year 2017)
+ *  Developed by Majid Asgari.
+ */
+
 package ir.ac.iust.dml.kg.raw.services;
 
 import ir.ac.iust.dml.kg.raw.services.tree.NewsLogic;
@@ -17,8 +23,6 @@ class ApplicationStartupRunner implements CommandLineRunner {
 
   @Autowired
   private NewsLogic newsLogic;
-
-
 
 
   @Override
