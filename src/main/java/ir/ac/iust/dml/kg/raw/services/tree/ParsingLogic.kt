@@ -49,7 +49,7 @@ public class ParsingLogic : RawTripleExtractor {
   @Autowired lateinit private var patternDao: DependencyPatternRepository
   private val logger = LogFactory.getLog(javaClass)
   private val DEP_CALC_ERROR = "error"
-  private val extractor = ExtractorClient(ConfigReader.getString("resource.extractor.url", "http://dmls.iust.ac.ir:8094"))
+  private val extractor = ExtractorClient(ConfigReader.getString("resource.extractor.url", "http://localhost:8094"))
   val tripleApi: V1triplesApi
 
   init {
