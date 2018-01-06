@@ -348,8 +348,11 @@ public class ParsingLogic : RawTripleExtractor {
               val sampleParts = WordTokenizer.tokenize(sample)
               val triple = rtb.create()
               pattern.relations.forEach relation@ { relation ->
+                if (relation.mandatoryWord != null && !sampleParts.contains(relation.mandatoryWord)) return@relation
                 val subject = getText(sampleParts, relation.subject) ?: return@relation
-                val predicate = getText(sampleParts, relation.predicate) ?: return@relation
+                val predicate =
+                    if (relation.manualPredicate != null) relation.manualPredicate
+                    else getText(sampleParts, relation.predicate) ?: return@relation
                 val `object` = getText(sampleParts, relation.`object`) ?: return@relation
                 triple.subject(subject).predicate(predicate).`object`(`object`)
                     .needsMapping(true).rawText(sample)
@@ -424,10 +427,16 @@ public class ParsingLogic : RawTripleExtractor {
     for (sentence in text) {
       try {
         val pattern = patternDao.findByPattern(buildTreeHash(sentence)) ?: continue
-        pattern.relations.filter { it.predicate != null && it.predicate.isNotEmpty() }.forEach { relation ->
+        pattern.relations.filter {
+          it.manualPredicate != null || (it.predicate != null && it.predicate.isNotEmpty())
+        }.forEach { relation ->
+          if (relation.mandatoryWord != null && !sentence.map { it.word }.contains(relation.mandatoryWord))
+            return@forEach
           val triple = rtb.create()
           triple.subject = relation.subject.map { sentence[it].word }.joinToString(" ")
-          triple.predicate = relation.predicate.map { sentence[it].word }.joinToString(" ")
+          triple.predicate =
+              if (relation.manualPredicate != null) relation.manualPredicate
+              else relation.predicate.map { sentence[it].word }.joinToString(" ")
           triple.`object` = relation.`object`.map { sentence[it].word }.joinToString(" ")
           triple.rawText = sentence.joinToString { it.word }
           triples.add(triple)
@@ -454,10 +463,15 @@ public class ParsingLogic : RawTripleExtractor {
       try {
         val pattern = patternDao.findByPattern(buildTreeHash(tree)) ?: return@forEachIndexed
         val words = getWords(tree)
-        pattern.relations.filter { it.predicate != null && it.predicate.isNotEmpty() }.forEach { relation ->
+        pattern.relations.filter {
+          it.manualPredicate != null || (it.predicate != null && it.predicate.isNotEmpty())
+        }.forEach { relation ->
+          if (relation.mandatoryWord != null && !words.contains(relation.mandatoryWord)) return@forEach
           val triple = rtb.create()
           triple.subject = relation.subject.map { words[it] }.joinToString(" ")
-          triple.predicate = relation.predicate.map { words[it] }.joinToString(" ")
+          triple.predicate =
+              if (relation.manualPredicate != null) relation.manualPredicate
+              else relation.predicate.map { words[it] }.joinToString(" ")
           triple.`object` = relation.`object`.map { words[it] }.joinToString(" ")
           triple.rawText = sentence[index]
           listener.tripleExtracted(triple)
