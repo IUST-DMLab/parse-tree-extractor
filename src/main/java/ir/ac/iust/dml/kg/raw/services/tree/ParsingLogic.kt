@@ -412,6 +412,7 @@ public class ParsingLogic : RawTripleExtractor {
     val triples = mutableListOf<RawTriple>()
     predict(object : TripleExtractionListener {
       override fun tripleExtracted(triple: RawTriple) {
+        triple.accuracy = 0.9
         triples.add(triple)
       }
     }, source, version, text)
@@ -439,6 +440,7 @@ public class ParsingLogic : RawTripleExtractor {
               else relation.predicate.map { sentence[it].word }.joinToString(" ")
           triple.`object` = relation.`object`.map { sentence[it].word }.joinToString(" ")
           triple.rawText = sentence.joinToString { it.word }
+          triple.accuracy = 0.9
           triples.add(triple)
         }
       } catch (e: Throwable) {
@@ -472,6 +474,7 @@ public class ParsingLogic : RawTripleExtractor {
           triple.predicate =
               if (relation.manualPredicate != null) relation.manualPredicate
               else relation.predicate.map { words[it] }.joinToString(" ")
+          triple.accuracy = 0.9
           triple.`object` = relation.`object`.map { words[it] }.joinToString(" ")
           triple.rawText = sentence[index]
           listener.tripleExtracted(triple)
