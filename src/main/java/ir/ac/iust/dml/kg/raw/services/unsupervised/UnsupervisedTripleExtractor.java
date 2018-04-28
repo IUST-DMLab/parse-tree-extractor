@@ -120,7 +120,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
                 .predicate(constituencyToString(verbConstituency))
                 .object(constituencyToString(entityConstituencies.get(1)))
                 .rawText(constituencyToString(sentence))
-                .accuracy(0.5).needsMapping(true);
+                .accuracy(0.75).needsMapping(true);
             for (int i = 0; i < otherConstituencies.size(); i++)
               triple.getMetadata().put("extra" + i, constituencyToString(otherConstituencies.get(i)));
             triples.add(triple);
@@ -128,16 +128,25 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
           if (!moreThanOneVerbs && entityConstituencies.size() == 1 &&
               otherConstituencies.size() > 0 && verbConstituency != null) {
             for (List<ResolvedEntityToken> otherConstituency : otherConstituencies) {
-              RawTriple triple = builder.create()
-                  .subject(constituencyToString(entityConstituencies.get(0)))
-                  .predicate(constituencyToString(verbConstituency))
-                  .object(constituencyToString(otherConstituency))
-                  .rawText(constituencyToString(sentence))
-                  .accuracy(0.5).needsMapping(true);
-              for (int i = 0; i < otherConstituencies.size(); i++)
-                if (otherConstituencies.get(i) != otherConstituency)
-                  triple.getMetadata().put("extra" + i, constituencyToString(otherConstituencies.get(i)));
-              triples.add(triple);
+              boolean hasName = false;
+              for (ResolvedEntityToken t : otherConstituency) {
+                if (t.getPos().equals("N") || t.getPos().equals("Ne")) {
+                  hasName = true;
+                  break;
+                }
+              }
+              if (hasName) {
+                RawTriple triple = builder.create()
+                    .subject(constituencyToString(entityConstituencies.get(0)))
+                    .predicate(constituencyToString(verbConstituency))
+                    .object(constituencyToString(otherConstituency))
+                    .rawText(constituencyToString(sentence))
+                    .accuracy(0.7).needsMapping(true);
+                for (int i = 0; i < otherConstituencies.size(); i++)
+                  if (otherConstituencies.get(i) != otherConstituency)
+                    triple.getMetadata().put("extra" + i, constituencyToString(otherConstituencies.get(i)));
+                triples.add(triple);
+              }
             }
           }
         }
