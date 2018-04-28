@@ -49,7 +49,13 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
         iris.add(token.getResource().getIri());
         numberOfResources++;
       }
-      builder.append(token.getWord()).append(' ');
+      if (token.getShrunkWords() == null)
+        builder.append(token.getWord()).append(' ');
+      else {
+        for (ResolvedEntityToken shrunkWord : token.getShrunkWords()) {
+          builder.append(shrunkWord.getWord()).append(' ');
+        }
+      }
     }
     if ((iris.size() == 1) && (numberOfResources == tokens.size()))
       return iris.iterator().next();
