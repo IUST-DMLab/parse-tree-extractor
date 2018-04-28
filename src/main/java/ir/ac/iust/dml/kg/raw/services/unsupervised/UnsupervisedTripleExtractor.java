@@ -85,16 +85,28 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
             if (lastGroup.size() > 0) constituencies.add(lastGroup);
             lastGroup = new ArrayList<>();
           }
-          if (!token.getPos().equals("CONJ") && !token.getPos().equals("PUNC")) lastGroup.add(token);
+          lastGroup.add(token);
         }
         if (lastGroup.size() > 0) constituencies.add(lastGroup);
 
-        if (constituencies.size() > 2) {
+        final List<List<ResolvedEntityToken>> effectiveCons = new ArrayList<>();
+        for (List<ResolvedEntityToken> c : constituencies) {
+          boolean hasNameOrVerb = false;
+          for (ResolvedEntityToken t : c) {
+            if (t.getPos().equals("N") || t.getPos().equals("Ne") || t.getPos().equals("V")) {
+              hasNameOrVerb = true;
+              break;
+            }
+          }
+          if (hasNameOrVerb) effectiveCons.add(c);
+        }
+
+        if (effectiveCons.size() > 2) {
           boolean moreThanOneVerbs = false;
           List<ResolvedEntityToken> verbConstituency = null;
           List<List<ResolvedEntityToken>> entityConstituencies = new ArrayList<>();
           List<List<ResolvedEntityToken>> otherConstituencies = new ArrayList<>();
-          for (List<ResolvedEntityToken> constituency : constituencies) {
+          for (List<ResolvedEntityToken> constituency : effectiveCons) {
             final Set<String> set = new HashSet<>();
             int resourceSize = 0;
             for (ResolvedEntityToken token : constituency) {
