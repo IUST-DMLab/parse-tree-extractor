@@ -14,6 +14,7 @@ package ir.ac.iust.dml.kg.raw.services.unsupervised;
 
 import ir.ac.iust.dml.kg.raw.DependencyParser;
 import ir.ac.iust.dml.kg.raw.Normalizer;
+import ir.ac.iust.dml.kg.raw.SentenceBranch;
 import ir.ac.iust.dml.kg.raw.SimpleConstituencyParser;
 import ir.ac.iust.dml.kg.raw.extractor.EnhancedEntityExtractor;
 import ir.ac.iust.dml.kg.raw.extractor.ResolvedEntityToken;
@@ -37,8 +38,8 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
   @Override
   public List<RawTriple> extract(String source, String version, String text) {
     List<RawTriple> result;
-    List<List<ResolvedEntityToken>> sentences = enhancedEntityExtractor.extract(Normalizer.removeBrackets(
-        Normalizer.normalize(text)));
+    List<List<ResolvedEntityToken>> sentences = enhancedEntityExtractor.extract(
+        SentenceBranch.summarize(Normalizer.removeBrackets(Normalizer.normalize(text))));
     enhancedEntityExtractor.disambiguateByContext(sentences, 3, 0.0001f);
     result = extract(source, version, sentences);
     return result;
@@ -119,7 +120,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
               final Set<String> set = new HashSet<>();
               int resourceSize = 0;
               for (ResolvedEntityToken token : constituency) {
-                if (token.getResource() != null) {
+                if (token.getResource() != null && !token.getResource().getMainClass().endsWith("Thing")) {
                   set.add(token.getResource().getIri());
                   resourceSize++;
                 }
@@ -129,10 +130,11 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
                 }
               }
               if (constituency != verbConstituency) {
-                if (set.size() == 1 && resourceSize == constituency.size() &&
-                    !constituency.get(0).getResource().getMainClass().endsWith("Thing"))
-                  entityConstituencies.add(constituency);
-                else otherConstituencies.add(constituency);
+                if (set.size() == 1 && resourceSize == constituency.size()) {
+                  if (!set.iterator().next().endsWith("Thing"))
+                    entityConstituencies.add(constituency);
+//                  allEntityCons.add(constituency);
+                } else otherConstituencies.add(constituency);
               }
             }
             if (!moreThanOneVerbs && entityConstituencies.size() == 2 && verbConstituency != null) {
@@ -149,13 +151,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
             if (!moreThanOneVerbs && entityConstituencies.size() == 1 &&
                 otherConstituencies.size() > 0 && verbConstituency != null) {
               for (List<ResolvedEntityToken> otherConstituency : otherConstituencies) {
-                boolean hasName = false;
-                for (ResolvedEntityToken t : otherConstituency) {
-                  if (t.getPos().equals("N") || t.getPos().equals("Ne")) {
-                    hasName = true;
-                    break;
-                  }
-                }
+                boolean hasName = hasName(otherConstituency);
                 if (hasName) {
                   RawTriple triple = builder.create()
                       .subject(constituencyToString(entityConstituencies.get(0)))
@@ -170,6 +166,29 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
                 }
               }
             }
+//            if (!moreThanOneVerbs && allEntityCons.size() >= 2 && verbConstituency != null) {
+//              for (int i1 = 0; i1 < allEntityCons.size(); i1++) {
+//                List<ResolvedEntityToken> otherConstituency = allEntityCons.get(i1);
+//                boolean hasName = hasName(otherConstituency);
+//                if (hasName) {
+//                  for (int i2 = 0; i2 < allEntityCons.size(); i2++) {
+//                    List<ResolvedEntityToken> otherConstituency2 = allEntityCons.get(i2);
+//                    if(i1 != i2) {
+//                      RawTriple triple = builder.create()
+//                          .subject(constituencyToString(otherConstituency))
+//                          .predicate(constituencyToString(verbConstituency))
+//                          .object(constituencyToString(otherConstituency2))
+//                          .rawText(constituencyToString(sentence))
+//                          .accuracy(0.5).needsMapping(true);
+//                      for (int i3 = 0; i3 < allEntityCons.size(); i3++)
+//                        if (allEntityCons.get(i3) != otherConstituency)
+//                          triple.getMetadata().put("extra" + i3, constituencyToString(allEntityCons.get(i3)));
+//                      triples.add(triple);
+//                    }
+//                  }
+//                }
+//              }
+//            }
           }
         }
       } catch (Throwable th) {
@@ -177,5 +196,16 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
       }
     }
     return triples;
+  }
+
+  private boolean hasName(List<ResolvedEntityToken> otherConstituency) {
+    boolean hasName = false;
+    for (ResolvedEntityToken t : otherConstituency) {
+      if (t.getPos().equals("N") || t.getPos().equals("Ne")) {
+        hasName = true;
+        break;
+      }
+    }
+    return hasName;
   }
 }
