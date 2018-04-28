@@ -13,12 +13,15 @@
 package ir.ac.iust.dml.kg.raw.services.unsupervised;
 
 import ir.ac.iust.dml.kg.raw.DependencyParser;
+import ir.ac.iust.dml.kg.raw.Normalizer;
 import ir.ac.iust.dml.kg.raw.SimpleConstituencyParser;
 import ir.ac.iust.dml.kg.raw.extractor.EnhancedEntityExtractor;
 import ir.ac.iust.dml.kg.raw.extractor.ResolvedEntityToken;
 import ir.ac.iust.dml.kg.raw.triple.RawTriple;
 import ir.ac.iust.dml.kg.raw.triple.RawTripleBuilder;
 import ir.ac.iust.dml.kg.raw.triple.RawTripleExtractor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -28,13 +31,15 @@ import java.util.Set;
 public class UnsupervisedTripleExtractor implements RawTripleExtractor {
 
   private EnhancedEntityExtractor enhancedEntityExtractor = new EnhancedEntityExtractor();
+  private static final Logger logger = LoggerFactory.getLogger(UnsupervisedTripleExtractor.class);
 
   @SuppressWarnings("Duplicates")
   @Override
   public List<RawTriple> extract(String source, String version, String text) {
     List<RawTriple> result;
-    List<List<ResolvedEntityToken>> sentences = enhancedEntityExtractor.extract(text);
-    enhancedEntityExtractor.disambiguateByContext(sentences, 0, 00001f);
+    List<List<ResolvedEntityToken>> sentences = enhancedEntityExtractor.extract(Normalizer.removeBrackets(
+        Normalizer.normalize(text)));
+    enhancedEntityExtractor.disambiguateByContext(sentences, 3, 0.0001f);
     result = extract(source, version, sentences);
     return result;
   }
@@ -49,11 +54,13 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
         iris.add(token.getResource().getIri());
         numberOfResources++;
       }
+      if (token.getPos().equals("PUNC")) continue;
       if (token.getShrunkWords() == null)
         builder.append(token.getWord()).append(' ');
       else {
         for (ResolvedEntityToken shrunkWord : token.getShrunkWords()) {
-          builder.append(shrunkWord.getWord()).append(' ');
+          if (!token.getPos().equals("PUNC"))
+            builder.append(shrunkWord.getWord()).append(' ');
         }
       }
     }
@@ -72,96 +79,101 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
     final RawTripleBuilder builder = new RawTripleBuilder("unsupervised", source,
         System.currentTimeMillis(), version);
     for (List<ResolvedEntityToken> sentence : text) {
-      if (sentence.size() > 0 && sentence.size() < 40) {
-        sentence = enhancedEntityExtractor.shrinkNameEntities(sentence);
-        if (sentence.get(0).getDep() == null) DependencyParser.addDependencyParse(sentence, true);
-        if (sentence.get(0).getPhraseMates() == null) SimpleConstituencyParser.addConstituencyParse(sentence);
-        List<List<ResolvedEntityToken>> constituencies = new ArrayList<>();
-        List<ResolvedEntityToken> lastGroup = new ArrayList<>();
-        lastGroup.add(sentence.get(0));
-        for (int i = 1; i < sentence.size(); i++) {
-          final ResolvedEntityToken token = sentence.get(i);
-          if (!token.getPhraseMates().contains(i - 1)) {
-            if (lastGroup.size() > 0) constituencies.add(lastGroup);
-            lastGroup = new ArrayList<>();
-          }
-          lastGroup.add(token);
-        }
-        if (lastGroup.size() > 0) constituencies.add(lastGroup);
-
-        final List<List<ResolvedEntityToken>> effectiveCons = new ArrayList<>();
-        for (List<ResolvedEntityToken> c : constituencies) {
-          boolean hasNameOrVerb = false;
-          for (ResolvedEntityToken t : c) {
-            if (t.getPos().equals("N") || t.getPos().equals("Ne") || t.getPos().equals("V")) {
-              hasNameOrVerb = true;
-              break;
+      try {
+        if (sentence.size() > 0 && sentence.size() < 40) {
+          sentence = enhancedEntityExtractor.shrinkNameEntities(sentence);
+          if (sentence.get(0).getDep() == null) DependencyParser.addDependencyParse(sentence, true);
+          if (sentence.get(0).getPhraseMates() == null) SimpleConstituencyParser.addConstituencyParse(sentence);
+          logger.info("checking this sentence: " + SimpleConstituencyParser.tokensToString(sentence));
+          List<List<ResolvedEntityToken>> constituencies = new ArrayList<>();
+          List<ResolvedEntityToken> lastGroup = new ArrayList<>();
+          lastGroup.add(sentence.get(0));
+          for (int i = 1; i < sentence.size(); i++) {
+            final ResolvedEntityToken token = sentence.get(i);
+            if (!token.getPhraseMates().contains(i - 1)) {
+              if (lastGroup.size() > 0) constituencies.add(lastGroup);
+              lastGroup = new ArrayList<>();
             }
+            lastGroup.add(token);
           }
-          if (hasNameOrVerb) effectiveCons.add(c);
-        }
+          if (lastGroup.size() > 0) constituencies.add(lastGroup);
 
-        if (effectiveCons.size() > 2) {
-          boolean moreThanOneVerbs = false;
-          List<ResolvedEntityToken> verbConstituency = null;
-          List<List<ResolvedEntityToken>> entityConstituencies = new ArrayList<>();
-          List<List<ResolvedEntityToken>> otherConstituencies = new ArrayList<>();
-          for (List<ResolvedEntityToken> constituency : effectiveCons) {
-            final Set<String> set = new HashSet<>();
-            int resourceSize = 0;
-            for (ResolvedEntityToken token : constituency) {
-              if (token.getResource() != null) {
-                set.add(token.getResource().getIri());
-                resourceSize++;
-              }
-              if (token.getPos().equals("V")) {
-                if (verbConstituency != null) moreThanOneVerbs = true;
-                verbConstituency = constituency;
+          final List<List<ResolvedEntityToken>> effectiveCons = new ArrayList<>();
+          for (List<ResolvedEntityToken> c : constituencies) {
+            boolean hasNameOrVerb = false;
+            for (ResolvedEntityToken t : c) {
+              if (t.getPos().equals("N") || t.getPos().equals("Ne") || t.getPos().equals("V")) {
+                hasNameOrVerb = true;
+                break;
               }
             }
-            if (constituency != verbConstituency) {
-              if (set.size() == 1 && resourceSize == constituency.size() &&
-                  !constituency.get(0).getResource().getMainClass().endsWith("Thing"))
-                entityConstituencies.add(constituency);
-              else otherConstituencies.add(constituency);
-            }
+            if (hasNameOrVerb) effectiveCons.add(c);
           }
-          if (!moreThanOneVerbs && entityConstituencies.size() == 2 && verbConstituency != null) {
-            RawTriple triple = builder.create()
-                .subject(constituencyToString(entityConstituencies.get(0)))
-                .predicate(constituencyToString(verbConstituency))
-                .object(constituencyToString(entityConstituencies.get(1)))
-                .rawText(constituencyToString(sentence))
-                .accuracy(0.75).needsMapping(true);
-            for (int i = 0; i < otherConstituencies.size(); i++)
-              triple.getMetadata().put("extra" + i, constituencyToString(otherConstituencies.get(i)));
-            triples.add(triple);
-          }
-          if (!moreThanOneVerbs && entityConstituencies.size() == 1 &&
-              otherConstituencies.size() > 0 && verbConstituency != null) {
-            for (List<ResolvedEntityToken> otherConstituency : otherConstituencies) {
-              boolean hasName = false;
-              for (ResolvedEntityToken t : otherConstituency) {
-                if (t.getPos().equals("N") || t.getPos().equals("Ne")) {
-                  hasName = true;
-                  break;
+
+          if (effectiveCons.size() > 2) {
+            boolean moreThanOneVerbs = false;
+            List<ResolvedEntityToken> verbConstituency = null;
+            List<List<ResolvedEntityToken>> entityConstituencies = new ArrayList<>();
+            List<List<ResolvedEntityToken>> otherConstituencies = new ArrayList<>();
+            for (List<ResolvedEntityToken> constituency : effectiveCons) {
+              final Set<String> set = new HashSet<>();
+              int resourceSize = 0;
+              for (ResolvedEntityToken token : constituency) {
+                if (token.getResource() != null) {
+                  set.add(token.getResource().getIri());
+                  resourceSize++;
+                }
+                if (token.getPos().equals("V")) {
+                  if (verbConstituency != null) moreThanOneVerbs = true;
+                  verbConstituency = constituency;
                 }
               }
-              if (hasName) {
-                RawTriple triple = builder.create()
-                    .subject(constituencyToString(entityConstituencies.get(0)))
-                    .predicate(constituencyToString(verbConstituency))
-                    .object(constituencyToString(otherConstituency))
-                    .rawText(constituencyToString(sentence))
-                    .accuracy(0.7).needsMapping(true);
-                for (int i = 0; i < otherConstituencies.size(); i++)
-                  if (otherConstituencies.get(i) != otherConstituency)
-                    triple.getMetadata().put("extra" + i, constituencyToString(otherConstituencies.get(i)));
-                triples.add(triple);
+              if (constituency != verbConstituency) {
+                if (set.size() == 1 && resourceSize == constituency.size() &&
+                    !constituency.get(0).getResource().getMainClass().endsWith("Thing"))
+                  entityConstituencies.add(constituency);
+                else otherConstituencies.add(constituency);
+              }
+            }
+            if (!moreThanOneVerbs && entityConstituencies.size() == 2 && verbConstituency != null) {
+              RawTriple triple = builder.create()
+                  .subject(constituencyToString(entityConstituencies.get(0)))
+                  .predicate(constituencyToString(verbConstituency))
+                  .object(constituencyToString(entityConstituencies.get(1)))
+                  .rawText(constituencyToString(sentence))
+                  .accuracy(0.75).needsMapping(true);
+              for (int i = 0; i < otherConstituencies.size(); i++)
+                triple.getMetadata().put("extra" + i, constituencyToString(otherConstituencies.get(i)));
+              triples.add(triple);
+            }
+            if (!moreThanOneVerbs && entityConstituencies.size() == 1 &&
+                otherConstituencies.size() > 0 && verbConstituency != null) {
+              for (List<ResolvedEntityToken> otherConstituency : otherConstituencies) {
+                boolean hasName = false;
+                for (ResolvedEntityToken t : otherConstituency) {
+                  if (t.getPos().equals("N") || t.getPos().equals("Ne")) {
+                    hasName = true;
+                    break;
+                  }
+                }
+                if (hasName) {
+                  RawTriple triple = builder.create()
+                      .subject(constituencyToString(entityConstituencies.get(0)))
+                      .predicate(constituencyToString(verbConstituency))
+                      .object(constituencyToString(otherConstituency))
+                      .rawText(constituencyToString(sentence))
+                      .accuracy(0.7).needsMapping(true);
+                  for (int i = 0; i < otherConstituencies.size(); i++)
+                    if (otherConstituencies.get(i) != otherConstituency)
+                      triple.getMetadata().put("extra" + i, constituencyToString(otherConstituencies.get(i)));
+                  triples.add(triple);
+                }
               }
             }
           }
         }
+      } catch (Throwable th) {
+        logger.error("error in extracting from sentence", th);
       }
     }
     return triples;
