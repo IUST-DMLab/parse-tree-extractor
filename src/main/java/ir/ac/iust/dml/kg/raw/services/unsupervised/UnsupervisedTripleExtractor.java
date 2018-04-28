@@ -72,7 +72,8 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
     final RawTripleBuilder builder = new RawTripleBuilder("unsupervised", source,
         System.currentTimeMillis(), version);
     for (List<ResolvedEntityToken> sentence : text) {
-      if (sentence.size() > 0 && sentence.size() < 10) {
+      if (sentence.size() > 0 && sentence.size() < 20) {
+        sentence = enhancedEntityExtractor.shrinkNameEntities(sentence);
         if (sentence.get(0).getDep() == null) DependencyParser.addDependencyParse(sentence);
         if (sentence.get(0).getPhraseMates() == null) SimpleConstituencyParser.addConstituencyParse(sentence);
         List<List<ResolvedEntityToken>> constituencies = new ArrayList<>();
