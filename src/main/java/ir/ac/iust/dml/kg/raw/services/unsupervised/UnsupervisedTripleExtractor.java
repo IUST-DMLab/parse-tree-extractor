@@ -130,7 +130,8 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
                 }
               }
               if (constituency != verbConstituency) {
-                if (set.size() == 1 && resourceSize == constituency.size()) {
+//                if (set.size() == 1 && resourceSize == constituency.size()) {
+                if (set.size() >= 1) {
                   if (!set.iterator().next().endsWith("Thing"))
                     entityConstituencies.add(constituency);
 //                  allEntityCons.add(constituency);
