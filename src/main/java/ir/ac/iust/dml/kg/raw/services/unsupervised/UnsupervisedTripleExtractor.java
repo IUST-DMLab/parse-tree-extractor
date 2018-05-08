@@ -98,7 +98,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
     final List<RawTriple> triples = new ArrayList<>();
     final RawTripleBuilder builder = new RawTripleBuilder("unsupervised_raw", source,
         System.currentTimeMillis(), version);
-    final RawTripleBuilder rocklessBuilder = new RawTripleBuilder("reckless_raw", source,
+    final RawTripleBuilder recklessBuilder = new RawTripleBuilder("reckless_raw", source,
         System.currentTimeMillis(), version);
     for (List<ResolvedEntityToken> sentence : text) {
       try {
@@ -195,7 +195,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
                 for (int i2 = i1 + 1; i2 < effectiveCons.size(); i2++) {
                   List<ResolvedEntityToken> c2 = effectiveCons.get(i2);
                   if (i1 != i2 && c2 != verbConstituency) {
-                    RawTriple triple = rocklessBuilder.create()
+                    RawTriple triple = recklessBuilder.create()
                         .subject(constituencyToString(c1))
                         .predicate(constituencyToString(verbConstituency))
                         .object(constituencyToString(c2))
