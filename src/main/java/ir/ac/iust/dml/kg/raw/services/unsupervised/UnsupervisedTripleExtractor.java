@@ -18,6 +18,7 @@ import ir.ac.iust.dml.kg.raw.SentenceBranch;
 import ir.ac.iust.dml.kg.raw.SimpleConstituencyParser;
 import ir.ac.iust.dml.kg.raw.extractor.EnhancedEntityExtractor;
 import ir.ac.iust.dml.kg.raw.extractor.ResolvedEntityToken;
+import ir.ac.iust.dml.kg.raw.extractor.ResolvedEntityTokenResource;
 import ir.ac.iust.dml.kg.raw.triple.RawTriple;
 import ir.ac.iust.dml.kg.raw.triple.RawTripleBuilder;
 import ir.ac.iust.dml.kg.raw.triple.RawTripleExtractor;
@@ -45,6 +46,20 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
     return result;
   }
 
+  private boolean isResolvedPronoun(ResolvedEntityToken resolvedEntityToken) {
+    if (resolvedEntityToken.getResource() == null) return false;
+    final String word = resolvedEntityToken.getWord();
+    return word.equals("او") || word.equals("وی") ||
+        word.equals("اینجا") || word.equals("آنجا") ||
+        word.equals("آن‌ها") || word.equals("آنها");
+  }
+
+  private String getTitle(ResolvedEntityTokenResource resource) {
+    final int index = resource.getIri().lastIndexOf('/');
+    final String title = resource.getIri().substring(index);
+    return title.replace('_', ' ');
+  }
+
   private String constituencyToString(List<ResolvedEntityToken> tokens) {
     final Set<String> iris = new HashSet<>();
     int numberOfResources = 0;
@@ -56,12 +71,14 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
         numberOfResources++;
       }
       if (token.getPos().equals("PUNC")) continue;
-      if (token.getShrunkWords() == null)
-        builder.append(token.getWord()).append(' ');
-      else {
+      if (token.getShrunkWords() == null) {
+        if (isResolvedPronoun(token)) builder.append(getTitle(token.getResource())).append(' ');
+        else builder.append(token.getWord()).append(' ');
+      } else {
         for (ResolvedEntityToken shrunkWord : token.getShrunkWords()) {
-          if (!token.getPos().equals("PUNC"))
+          if (!token.getPos().equals("PUNC")) {
             builder.append(shrunkWord.getWord()).append(' ');
+          }
         }
       }
     }
@@ -151,7 +168,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
               triples.add(triple);
             }
             if (!moreThanOneVerbs && entityConstituencies.size() == 1 &&
-                otherConstituencies.size() > 0 && verbConstituency != null) {
+                otherConstituencies.size() > 0 && otherConstituencies.size() < 3 && verbConstituency != null) {
               for (List<ResolvedEntityToken> otherConstituency : otherConstituencies) {
                 boolean hasName = hasName(otherConstituency);
                 if (hasName) {
@@ -168,7 +185,8 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
                 }
               }
             }
-            if (!moreThanOneVerbs && effectiveCons.size() >= 2 && verbConstituency != null) {
+            if (!moreThanOneVerbs && effectiveCons.size() >= 2 && verbConstituency != null &&
+                otherConstituencies.size() < 4) {
               for (int i1 = 0; i1 < effectiveCons.size(); i1++) {
                 List<ResolvedEntityToken> c1 = effectiveCons.get(i1);
                 if (c1 == verbConstituency) continue;
