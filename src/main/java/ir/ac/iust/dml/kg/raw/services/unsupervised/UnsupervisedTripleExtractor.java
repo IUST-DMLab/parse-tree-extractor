@@ -42,6 +42,8 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
     List<List<ResolvedEntityToken>> sentences = enhancedEntityExtractor.extract(
         SentenceBranch.summarize(Normalizer.removeBrackets(Normalizer.normalize(text))));
     enhancedEntityExtractor.disambiguateByContext(sentences, 3, 0.0001f);
+    enhancedEntityExtractor.resolveByName(sentences);
+    enhancedEntityExtractor.resolvePronouns(sentences);
     result = extract(source, version, sentences);
     return result;
   }
@@ -56,7 +58,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
 
   private String getTitle(ResolvedEntityTokenResource resource) {
     final int index = resource.getIri().lastIndexOf('/');
-    final String title = resource.getIri().substring(index);
+    final String title = resource.getIri().substring(index + 1);
     return title.replace('_', ' ');
   }
 
@@ -190,7 +192,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
               for (int i1 = 0; i1 < effectiveCons.size(); i1++) {
                 List<ResolvedEntityToken> c1 = effectiveCons.get(i1);
                 if (c1 == verbConstituency) continue;
-                for (int i2 = i1 + 1; i2 < c1.size(); i2++) {
+                for (int i2 = i1 + 1; i2 < effectiveCons.size(); i2++) {
                   List<ResolvedEntityToken> c2 = effectiveCons.get(i2);
                   if (i1 != i2 && c2 != verbConstituency) {
                     RawTriple triple = rocklessBuilder.create()
