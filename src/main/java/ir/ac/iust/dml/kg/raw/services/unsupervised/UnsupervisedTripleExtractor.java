@@ -17,6 +17,7 @@ import ir.ac.iust.dml.kg.raw.Normalizer;
 import ir.ac.iust.dml.kg.raw.SentenceBranch;
 import ir.ac.iust.dml.kg.raw.SimpleConstituencyParser;
 import ir.ac.iust.dml.kg.raw.extractor.EnhancedEntityExtractor;
+import ir.ac.iust.dml.kg.raw.extractor.IobType;
 import ir.ac.iust.dml.kg.raw.extractor.ResolvedEntityToken;
 import ir.ac.iust.dml.kg.raw.extractor.ResolvedEntityTokenResource;
 import ir.ac.iust.dml.kg.raw.triple.RawTriple;
@@ -40,7 +41,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
   public List<RawTriple> extract(String source, String version, String text) {
     List<RawTriple> result;
     List<List<ResolvedEntityToken>> sentences = enhancedEntityExtractor.extract(
-        SentenceBranch.summarize(Normalizer.removeBrackets(Normalizer.normalize(text))));
+            SentenceBranch.summarize(Normalizer.removeBrackets(Normalizer.normalize(text))));
     enhancedEntityExtractor.disambiguateByContext(sentences, 3, 0.0001f);
     enhancedEntityExtractor.resolveByName(sentences);
     enhancedEntityExtractor.resolvePronouns(sentences);
@@ -52,8 +53,8 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
     if (resolvedEntityToken.getResource() == null) return false;
     final String word = resolvedEntityToken.getWord();
     return word.equals("او") || word.equals("وی") ||
-        word.equals("اینجا") || word.equals("آنجا") ||
-        word.equals("آن‌ها") || word.equals("آنها");
+            word.equals("اینجا") || word.equals("آنجا") ||
+            word.equals("آن‌ها") || word.equals("آنها");
   }
 
   private String getTitle(ResolvedEntityTokenResource resource) {
@@ -97,9 +98,9 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
   public List<RawTriple> extract(String source, String version, List<List<ResolvedEntityToken>> text) {
     final List<RawTriple> triples = new ArrayList<>();
     final RawTripleBuilder builder = new RawTripleBuilder("unsupervised_raw", source,
-        System.currentTimeMillis(), version);
+            System.currentTimeMillis(), version);
     final RawTripleBuilder recklessBuilder = new RawTripleBuilder("reckless_raw", source,
-        System.currentTimeMillis(), version);
+            System.currentTimeMillis(), version);
     for (List<ResolvedEntityToken> sentence : text) {
       try {
         if (sentence.size() > 0 && sentence.size() < 40) {
@@ -159,27 +160,57 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
               }
             }
             if (!moreThanOneVerbs && entityConstituencies.size() == 2 && verbConstituency != null) {
-              RawTriple triple = builder.create()
-                  .subject(constituencyToString(entityConstituencies.get(0)))
-                  .predicate(constituencyToString(verbConstituency))
-                  .object(constituencyToString(entityConstituencies.get(1)))
-                  .rawText(constituencyToString(sentence))
-                  .accuracy(0.75).needsMapping(true);
+              boolean subjectHasP = hasPOS(entityConstituencies.get(0), true, "P");
+              RawTriple triple;
+              List<ResolvedEntityToken> subject = entityConstituencies.get(0);
+              List<ResolvedEntityToken> object = entityConstituencies.get(1);
+
+              if(!subjectHasP) {
+                triple = builder.create()
+                        .subject(constituencyToString(subject))
+                        .predicate(constituencyToString(verbConstituency))
+                        .object(constituencyToString(object))
+                        .rawText(constituencyToString(sentence))
+                        .accuracy(calculateAccuracy(0.7, subject, object))
+                        .needsMapping(true);
+              } else {
+                triple = recklessBuilder.create()
+                        .subject(constituencyToString(subject))
+                        .predicate(constituencyToString(verbConstituency))
+                        .object(constituencyToString(object))
+                        .rawText(constituencyToString(sentence))
+                        .accuracy(calculateAccuracy(0.4, subject, object))
+                        .needsMapping(true);
+              }
               for (int i = 0; i < otherConstituencies.size(); i++)
                 triple.getMetadata().put("extra" + i, constituencyToString(otherConstituencies.get(i)));
               triples.add(triple);
             }
             if (!moreThanOneVerbs && entityConstituencies.size() == 1 &&
-                otherConstituencies.size() > 0 && otherConstituencies.size() < 3 && verbConstituency != null) {
+                    otherConstituencies.size() > 0 && otherConstituencies.size() < 3 && verbConstituency != null) {
               for (List<ResolvedEntityToken> otherConstituency : otherConstituencies) {
-                boolean hasName = hasName(otherConstituency);
+                boolean hasName = hasPOS(otherConstituency,  false,"N", "Ne");
+                boolean subjectHasP = hasPOS(entityConstituencies.get(0), true, "P");
+                List<ResolvedEntityToken> subject = entityConstituencies.get(0);
                 if (hasName) {
-                  RawTriple triple = builder.create()
-                      .subject(constituencyToString(entityConstituencies.get(0)))
-                      .predicate(constituencyToString(verbConstituency))
-                      .object(constituencyToString(otherConstituency))
-                      .rawText(constituencyToString(sentence))
-                      .accuracy(0.7).needsMapping(true);
+                  RawTriple triple;
+                  if(!subjectHasP) {
+                    triple = builder.create()
+                            .subject(constituencyToString(subject))
+                            .predicate(constituencyToString(verbConstituency))
+                            .object(constituencyToString(otherConstituency))
+                            .rawText(constituencyToString(sentence))
+                            .accuracy(calculateAccuracy(0.6, subject, otherConstituency))
+                            .needsMapping(true);
+                  } else {
+                    triple = recklessBuilder.create()
+                            .subject(constituencyToString(subject))
+                            .predicate(constituencyToString(verbConstituency))
+                            .object(constituencyToString(otherConstituency))
+                            .rawText(constituencyToString(sentence))
+                            .accuracy(calculateAccuracy(0.3, subject, otherConstituency))
+                            .needsMapping(true);
+                  }
                   for (int i = 0; i < otherConstituencies.size(); i++)
                     if (otherConstituencies.get(i) != otherConstituency)
                       triple.getMetadata().put("extra" + i, constituencyToString(otherConstituencies.get(i)));
@@ -188,7 +219,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
               }
             }
             if (!moreThanOneVerbs && effectiveCons.size() >= 2 && verbConstituency != null &&
-                otherConstituencies.size() < 4) {
+                    otherConstituencies.size() < 4) {
               for (int i1 = 0; i1 < effectiveCons.size(); i1++) {
                 List<ResolvedEntityToken> c1 = effectiveCons.get(i1);
                 if (c1 == verbConstituency) continue;
@@ -196,14 +227,14 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
                   List<ResolvedEntityToken> c2 = effectiveCons.get(i2);
                   if (i1 != i2 && c2 != verbConstituency) {
                     RawTriple triple = recklessBuilder.create()
-                        .subject(constituencyToString(c1))
-                        .predicate(constituencyToString(verbConstituency))
-                        .object(constituencyToString(c2))
-                        .rawText(constituencyToString(sentence))
-                        .accuracy(0.4).needsMapping(true);
+                            .subject(constituencyToString(c1))
+                            .predicate(constituencyToString(verbConstituency))
+                            .object(constituencyToString(c2))
+                            .rawText(constituencyToString(sentence))
+                            .accuracy(calculateAccuracy(0.3, c1, c2)).needsMapping(true);
                     for (int i3 = 0; i3 < constituencies.size(); i3++)
                       if (constituencies.get(i3) != c1 && constituencies.get(i3) != c2 &&
-                          constituencies.get(i3) != verbConstituency)
+                              constituencies.get(i3) != verbConstituency)
                         triple.getMetadata().put("extra" + i3, constituencyToString(constituencies.get(i3)));
                     triples.add(triple);
                   }
@@ -219,14 +250,40 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
     return triples;
   }
 
-  private boolean hasName(List<ResolvedEntityToken> otherConstituency) {
-    boolean hasName = false;
-    for (ResolvedEntityToken t : otherConstituency) {
-      if (t.getPos().equals("N") || t.getPos().equals("Ne")) {
-        hasName = true;
-        break;
+  private double calculateAccuracy(double base, List<ResolvedEntityToken> subject, List<ResolvedEntityToken> object) {
+    return base + (numberOfResources(subject) * 0.01) + (numberOfResources(object) * 0.005) +
+            (allEntitiesIsPOS(subject, "N", "Ne") ? 0.1 : 0) +
+            (allEntitiesIsPOS(object, "N", "Ne") ? 0.05 : 0);
+  }
+
+  private int numberOfResources(List<ResolvedEntityToken> tokens) {
+    int count = 0;
+    for (ResolvedEntityToken t : tokens)
+      if(t.getResource() != null) count++;
+    return count;
+  }
+
+  private boolean hasPOS(List<ResolvedEntityToken> tokens, boolean justSearchInOutside, String ... posTags) {
+    for (ResolvedEntityToken t : tokens) {
+      for(String posTag: posTags) {
+        if(t.getPos().equals(posTag) && (!justSearchInOutside || t.getIobType() == IobType.Outside)) {
+          return true;
+        }
       }
     }
-    return hasName;
+    return false;
+  }
+
+  private boolean allEntitiesIsPOS(List<ResolvedEntityToken> tokens, String ... posTags) {
+    for (ResolvedEntityToken t : tokens) {
+      boolean matched = false;
+      for(String posTag: posTags) {
+        if(t.getPos().equals(posTag))
+          matched = true;
+      }
+      if(!matched)
+        return false;
+    }
+    return true;
   }
 }
