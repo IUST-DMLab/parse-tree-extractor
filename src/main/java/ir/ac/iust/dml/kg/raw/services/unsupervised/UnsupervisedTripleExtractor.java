@@ -101,6 +101,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
             System.currentTimeMillis(), version);
     final RawTripleBuilder recklessBuilder = new RawTripleBuilder("reckless_raw", source,
             System.currentTimeMillis(), version);
+
     for (List<ResolvedEntityToken> sentence : text) {
       try {
         if (sentence.size() > 0 && sentence.size() < 40) {
@@ -161,12 +162,14 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
             }
 
             if (!moreThanOneVerbs && entityConstituencies.size() == 2 && verbConstituency != null) {
-              boolean subjectHasP = hasPOS(entityConstituencies.get(0), true, "P");
               RawTriple triple;
               List<ResolvedEntityToken> subject = entityConstituencies.get(0);
               List<ResolvedEntityToken> object = entityConstituencies.get(1);
 
-              if (!subjectHasP)
+              boolean subjectHasP = hasPOS(subject, true, "P");
+              boolean subjectIsLink = subjectIsOneLink(subject);
+
+              if (!subjectHasP && subjectIsLink)
                 triple = fill(builder.create(), 0.7, sentence, subject, verbConstituency, object);
               else
                 triple = fill(recklessBuilder.create(), 0.4, sentence, subject, verbConstituency, object);
@@ -178,12 +181,14 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
             if (!moreThanOneVerbs && entityConstituencies.size() == 1 &&
                     otherConstituencies.size() > 0 && otherConstituencies.size() < 3 && verbConstituency != null) {
               for (List<ResolvedEntityToken> otherConstituency : otherConstituencies) {
-                boolean hasName = hasPOS(otherConstituency, false, "N", "Ne");
-                boolean subjectHasP = hasPOS(entityConstituencies.get(0), true, "P");
                 List<ResolvedEntityToken> subject = entityConstituencies.get(0);
-                if (hasName) {
+                boolean subjectHasP = hasPOS(subject, true, "P");
+                boolean subjectIsLink = subjectIsOneLink(subject);
+                boolean objectHasName = hasPOS(otherConstituency, false, "N", "Ne");
+
+                if (objectHasName) {
                   RawTriple triple;
-                  if (!subjectHasP)
+                  if (!subjectHasP && subjectIsLink)
                     triple = fill(builder.create(), 0.6, sentence, subject, verbConstituency, otherConstituency);
                   else
                     triple = fill(recklessBuilder.create(), 0.3, sentence, subject, verbConstituency, otherConstituency);
@@ -220,6 +225,15 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
       }
     }
     return triples;
+  }
+
+  private boolean subjectIsOneLink(List<ResolvedEntityToken> subject) {
+    Set<String> uris = new HashSet<>();
+    for (ResolvedEntityToken token : subject) {
+      if (token.getResource() == null) return false;
+      uris.add(token.getResource().getIri());
+    }
+    return uris.size() == 1;
   }
 
   private RawTriple fill(RawTriple triple,
