@@ -43,6 +43,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
     List<List<ResolvedEntityToken>> sentences = enhancedEntityExtractor.extract(
             SentenceBranch.summarize(Normalizer.removeBrackets(Normalizer.normalize(text))));
     enhancedEntityExtractor.disambiguateByContext(sentences, 3, 0.0001f);
+    enhancedEntityExtractor.integrateNER(sentences);
     enhancedEntityExtractor.resolveByName(sentences);
     enhancedEntityExtractor.resolvePronouns(sentences);
     result = extract(source, version, sentences);
