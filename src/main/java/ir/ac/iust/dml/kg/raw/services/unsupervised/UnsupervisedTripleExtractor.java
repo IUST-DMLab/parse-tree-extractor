@@ -144,7 +144,8 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
               final Set<String> set = new HashSet<>();
 //              int resourceSize = 0;
               for (ResolvedEntityToken token : constituency) {
-                if (token.getResource() != null && !token.getResource().getMainClass().endsWith("Thing")) {
+                if (token.getResource() != null && token.getResource().getMainClass() != null
+                        && !token.getResource().getMainClass().endsWith("Thing")) {
                   set.add(token.getResource().getIri());
 //                  resourceSize++;
                 }
