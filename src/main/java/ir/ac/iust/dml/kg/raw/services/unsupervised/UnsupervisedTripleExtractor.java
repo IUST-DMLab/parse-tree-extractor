@@ -169,7 +169,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
               List<ResolvedEntityToken> object = entityConstituencies.get(1);
 
               boolean subjectHasP = hasPOS(subject, true, "P");
-              boolean subjectIsLink = subjectIsOneLink(subject);
+              boolean subjectIsLink = containsOneLink(subject);
 
               if (!subjectHasP && subjectIsLink)
                 triple = fill(builder.create(), 0.7, sentence, subject, verbConstituency, object);
@@ -185,7 +185,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
               for (List<ResolvedEntityToken> otherConstituency : otherConstituencies) {
                 List<ResolvedEntityToken> subject = entityConstituencies.get(0);
                 boolean subjectHasP = hasPOS(subject, true, "P");
-                boolean subjectIsLink = subjectIsOneLink(subject);
+                boolean subjectIsLink = containsOneLink(subject);
                 boolean objectHasName = hasPOS(otherConstituency, false, "N", "Ne");
 
                 if (objectHasName) {
@@ -229,7 +229,7 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
     return triples;
   }
 
-  private boolean subjectIsOneLink(List<ResolvedEntityToken> subject) {
+  private boolean containsOneLink(List<ResolvedEntityToken> subject) {
     Set<String> uris = new HashSet<>();
     for (ResolvedEntityToken token : subject) {
       if (token.getResource() == null) return false;
@@ -244,7 +244,19 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
                          List<ResolvedEntityToken> subject,
                          List<ResolvedEntityToken> predicate,
                          List<ResolvedEntityToken> object) {
-    if (object.get(0).getPos().equals("P")) {
+    if (object.get(0).getWord().equals("به") && object.get(0).getWord().equals("دلیل")) {
+      // pass P word from object to end of predicate
+      final List<ResolvedEntityToken> newPredicate = new ArrayList<>(predicate);
+      newPredicate.add(object.get(0));
+      newPredicate.add(object.get(1));
+      final List<ResolvedEntityToken> newObject = new ArrayList<>(object);
+      newObject.remove(0);
+      newObject.remove(0);
+      triple.predicate(constituencyToString(newPredicate)).object(constituencyToString(newObject));
+      object = newObject;
+      predicate = newPredicate;
+    }
+    else if (object.get(0).getPos().equals("P")) {
       // pass P word from object to end of predicate
       final List<ResolvedEntityToken> newPredicate = new ArrayList<>(predicate);
       newPredicate.add(object.get(0));
@@ -252,20 +264,25 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
       newObject.remove(0);
       triple.predicate(constituencyToString(newPredicate)).object(constituencyToString(newObject));
       object = newObject;
+      predicate = newPredicate;
     } else
       triple.predicate(constituencyToString(predicate)).object(constituencyToString(object));
 
     triple.subject(constituencyToString(subject))
             .rawText(constituencyToString(rawText))
             .needsMapping(true)
-            .accuracy(calculateAccuracy(accuracyBase, subject, object));
+            .accuracy(calculateAccuracy(accuracyBase, subject, predicate, object));
     return triple;
   }
 
-  private double calculateAccuracy(double base, List<ResolvedEntityToken> subject, List<ResolvedEntityToken> object) {
+  private double calculateAccuracy(double base, List<ResolvedEntityToken> subject,
+                                   List<ResolvedEntityToken> predicate,
+                                   List<ResolvedEntityToken> object) {
     return base + (numberOfResources(subject) * 0.01) + (numberOfResources(object) * 0.005) +
             (allEntitiesIsPOS(subject, "N", "Ne") ? 0.1 : 0) +
-            (allEntitiesIsPOS(object, "N", "Ne") ? 0.05 : 0);
+            (allEntitiesIsPOS(object, "N", "Ne") ? 0.05 : 0) +
+            (hasPOS(predicate, false, "N", "Ne") ? -0.05 : 0) +
+            (containsOneLink(subject) && containsOneLink(object) ? (predicate.size() <= 3 ? 0.1 : 0.4) : 0);
   }
 
   private int numberOfResources(List<ResolvedEntityToken> tokens) {
