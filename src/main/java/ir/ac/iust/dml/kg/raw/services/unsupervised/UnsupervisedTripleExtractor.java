@@ -282,6 +282,9 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
             (allEntitiesIsPOS(subject, "N", "Ne") ? 0.1 : 0) +
             (allEntitiesIsPOS(object, "N", "Ne") ? 0.05 : 0) +
             (hasPOS(predicate, false, "N", "Ne") ? -0.05 : 0) +
+            (hasCharacters(subject, false, "(", ")") ? -0.15 : 0) +
+            (hasCharacters(object, false, "(", ")") ? -0.15 : 0) +
+            (!hasNer(subject) ? -0.025 : 0) + (!hasNer(object) ? -0.025 : 0) +
             (containsOneLink(subject) && containsOneLink(object) ? (predicate.size() <= 3 ? 0.1 : 0.4) : 0);
   }
 
@@ -296,6 +299,24 @@ public class UnsupervisedTripleExtractor implements RawTripleExtractor {
     for (ResolvedEntityToken t : tokens) {
       for (String posTag : posTags) {
         if (t.getPos().equals(posTag) && (!justSearchInOutside || t.getIobType() == IobType.Outside)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private boolean hasNer(List<ResolvedEntityToken> tokens) {
+    for (ResolvedEntityToken t : tokens)
+      if(!t.getNer().equals("O")) return true;
+    return false;
+  }
+
+
+  private boolean hasCharacters(List<ResolvedEntityToken> tokens, boolean justSearchInOutside, String... characterSets) {
+    for (ResolvedEntityToken t : tokens) {
+      for (String characterSet : characterSets) {
+        if (t.getWord().contains(characterSet) && (!justSearchInOutside || t.getIobType() == IobType.Outside)) {
           return true;
         }
       }
